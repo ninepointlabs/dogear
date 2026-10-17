@@ -60,7 +60,7 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 | `Ctrl+,` | Settings (export folder) |
 | `Ctrl+Q` | Quit |
 | `F1`, `?` | Keyboard shortcuts |
-| `j` `k`, `↓` `↑`, mouse wheel | Scroll (the wheel scrolls smoothly; touchpads follow your fingers) |
+| `j` `k`, `↓` `↑`, mouse wheel | Scroll (the wheel glides, and goes further the faster you spin it; touchpads follow your fingers) |
 | `Shift`+wheel | Scroll sideways |
 | `h` `l`, `←` `→` | Scroll sideways (when zoomed in) |
 | `Space`, `Shift+Space`, `PgDn`, `PgUp` | Down or up one screen |

@@ -180,6 +180,16 @@ class UiSmokeTest(unittest.TestCase):
         step = self.page_view().property("wheelStep")
         self.assertAlmostEqual(self.page_view().property("scrollY"), y0 + step, delta=1)
         self.assertLess(mid, y0 + step - 1, "wheel scroll should animate, not jump")
+        # Notches in quick succession speed up: four fast ones go further
+        # than four single steps.
+        y1 = self.page_view().property("scrollY")
+        for _ in range(4):
+            QGuiApplication.sendEvent(self.window, QWheelEvent(
+                pos, self.window.mapToGlobal(pos), QPoint(), QPoint(0, -120), Qt.MouseButton.NoButton,
+                Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False))
+            self.wait(30)
+        self.wait(400)
+        self.assertGreater(self.page_view().property("scrollY") - y1, 4 * step * 1.2)
         self.page_view().forceActiveFocus()
         QTest.keyClick(self.window, Qt.Key.Key_Home)
         self.wait()

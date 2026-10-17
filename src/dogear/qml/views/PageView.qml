@@ -148,8 +148,22 @@ Item {
     function scrollBy(dy) { stopSmooth(); flick.contentY = clampY(flick.contentY + dy) }
 
     // Mouse-wheel scrolling glides to its target. Successive notches add to
-    // the target, so a fast spin keeps accelerating instead of stuttering.
-    readonly property real wheelStep: Theme.fontBody * 12
+    // the target, so a fast spin keeps accelerating instead of stuttering,
+    // and notches in quick succession go further each (up to wheelMaxBoost).
+    readonly property real wheelStep: Theme.fontBody * 18
+    readonly property real wheelMaxBoost: 2.5
+    property real wheelBoost: 1
+    property double lastWheel: 0
+    function wheelNotches(notches) {
+        const now = Date.now()
+        // Within 120 ms of the last notch in the same direction: speed up.
+        const sameWay = Math.sign(notches) === Math.sign(lastWheelNotches)
+        wheelBoost = sameWay && now - lastWheel < 120 ? Math.min(wheelMaxBoost, wheelBoost * 1.2) : 1
+        lastWheel = now
+        lastWheelNotches = notches
+        smoothScrollBy(-notches * wheelStep * wheelBoost)
+    }
+    property real lastWheelNotches: 0
     property real smoothTarget: 0
     function smoothScrollBy(dy) {
         const base = smoothY.running ? smoothTarget : flick.contentY
@@ -382,7 +396,7 @@ Item {
         const ctrl = event.modifiers & Qt.ControlModifier
         const shift = event.modifiers & Qt.ShiftModifier
         const alt = event.modifiers & Qt.AltModifier
-        const step = Theme.fontBody * 5
+        const step = Theme.fontBody * 7
         const t = event.text
         let handled = true
         if (alt && event.key === Qt.Key_Left) { view.back() }
@@ -459,7 +473,7 @@ Item {
                     view.scrollXBy(-event.pixelDelta.x)
                     return
                 }
-                if (event.angleDelta.y !== 0) view.smoothScrollBy(-event.angleDelta.y / 120 * view.wheelStep)
+                if (event.angleDelta.y !== 0) view.wheelNotches(event.angleDelta.y / 120)
                 if (event.angleDelta.x !== 0) view.scrollXBy(-event.angleDelta.x / 120 * view.wheelStep)
             }
         }

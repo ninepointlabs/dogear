@@ -87,22 +87,28 @@ Item {
         border.color: Theme.border
     }
 
-    PdfPageImage {
+    // Only pages near the viewport have an image at all. An image whose
+    // document is taken away keeps its file URL and, when the zoom changes
+    // its size, reloads by opening the whole PDF on its own.
+    Loader {
         id: image
         anchors.fill: parent
-        document: page.near ? page.pageView.pdf : null
-        currentFrame: page.index
-        asynchronous: true
-        retainWhileLoading: true
-        smooth: true
-        fillMode: Image.Stretch
-        sourceSize.width: Math.round(page.size[0] * page.pageView.renderPxPerPt * Screen.devicePixelRatio)
-        sourceSize.height: Math.round(page.size[1] * page.pageView.renderPxPerPt * Screen.devicePixelRatio)
+        active: page.near
+        sourceComponent: PdfPageImage {
+            document: page.pageView.pdf
+            currentFrame: page.index
+            asynchronous: true
+            retainWhileLoading: true
+            smooth: true
+            fillMode: Image.Stretch
+            sourceSize.width: Math.round(page.size[0] * page.pageView.renderPxPerPt * Screen.devicePixelRatio)
+            sourceSize.height: Math.round(page.size[1] * page.pageView.renderPxPerPt * Screen.devicePixelRatio)
+        }
     }
 
     DgText {
         anchors.centerIn: parent
-        visible: image.status !== Image.Ready
+        visible: !image.item || image.item.status !== Image.Ready
         text: "Page " + (page.index + 1)
         color: "#888888"
     }

@@ -33,6 +33,16 @@ except ImportError:  # pragma: no cover
 class UiSmokeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        from PySide6.QtCore import qInstallMessageHandler
+
+        # Qt warnings the app must never cause, collected for the test.
+        cls.qt_warnings = []
+
+        def collect(mode, context, message):
+            if "inefficient loading" in message:
+                cls.qt_warnings.append(message)
+
+        qInstallMessageHandler(collect)
         cls._tmp = tempfile.TemporaryDirectory()
         tmp = Path(cls._tmp.name)
         os.environ["DOGEAR_DATA_DIR"] = str(tmp / "data")
@@ -55,6 +65,9 @@ class UiSmokeTest(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        from PySide6.QtCore import qInstallMessageHandler
+
+        qInstallMessageHandler(None)
         cls.doc.close()
         cls.engine.deleteLater()
         cls._tmp.cleanup()
@@ -288,6 +301,10 @@ class UiSmokeTest(unittest.TestCase):
         self.assertEqual(len(self.doc.answersOnPage(5)), 3)
         self.assertEqual(self.page_view().property("currentPage"), 4)
         self.assertAlmostEqual(self.page_view().property("zoom"), zoom, places=3)
+
+        # Zooming never makes a page image reload the PDF file on its own
+        # (an image left without its shared document does that).
+        self.assertEqual(self.qt_warnings, [])
 
         # The original PDF was never touched and nothing was written next to it.
         self.assertEqual([p.name for p in self.pdf.parent.iterdir()], ["class notes.pdf"])

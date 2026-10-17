@@ -44,6 +44,8 @@ stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 
 - **Narrow windows** (added after v0.1), such as half a screen in a tiling window manager. The library drops the tagline and key hints, puts sorting under the search box, narrows the categories, and moves a document's marks and buttons under its title. The reader's toolbar drops its key hints and zoom buttons, then Fit, Search and Export (their keys still work), and the title always keeps room. The thresholds are in units of the theme's font size, so they follow a bigger Omarchy font. Checked by screenshots at 1500, 950, 640 and 480 px, and a smoke test at 40 font-widths that fails on the old layout (the document title got 0 px).
 
+- **Release 0.1.0**: an Arch package (`dogear-0.1.0-1-any.pkg.tar.zst`) on the GitHub release, built by `makepkg` from the GitHub tarball of the `v0.1.0` tag in a clean `archlinux:latest` container. Its `check()` runs the whole test suite there; the package was then installed with `pacman -U` in the same container and started. The container build found that the test PDF depended on Ghostscript's default paper size (A4 there, Letter here); it is now always Letter. README and the site list autonomix-cli and `pacman -U`.
+
 ## What doesn't (yet)
 
 - **Highlights can't cross pages.** A drag that leaves the page selects to the end of the starting page. Highlight each page separately.
@@ -63,7 +65,6 @@ stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 - **Brought-over marks aren't realigned.** They keep their page and position. If a new edition moved text, they sit off and need redoing.
 - **Only one matching copy is offered**, the one with the most marks. Marks from two older copies can't be merged in one go.
 - **Library search reads every annotation file on each keystroke.** That's instant for dozens of documents. With hundreds it may need an index.
-- **The PKGBUILD is untested.** There's no remote or release tarball yet, so `source`/`sha256sums` are placeholders. The wheel build was checked: it includes the QML, assets and the `dogear` entry point.
 
 - **Syncing wasn't tried with a real second computer or a real sync service.** It was checked with two local data dirs sharing one library folder, files replaced underneath an open document, and hand-made conflict files using Syncthing's naming. Dropbox's and Google Drive's conflict names are matched by pattern (`<hash>…json`) but weren't seen for real.
 - **A document removed on one computer while it's open on another comes back** when the other one saves. Nothing is lost, but it has to be removed again.

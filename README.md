@@ -28,7 +28,30 @@ to Markdown, for example straight into your Obsidian vault.
 - Keyboard first. Repaints immediately when you run `omarchy theme set`.
 - Never modifies your PDFs. No network access, no telemetry.
 
-## Run it
+## Install
+
+On Arch and Omarchy, install the package from the
+[latest GitHub release](https://github.com/ninepointlabs/dogear/releases/latest). Either way
+puts Dogear in your app launcher and lets it open PDFs.
+
+**With [autonomix-cli](https://github.com/ninepointlabs/autonomix-cli)**, which installs the
+package and keeps Dogear updated from GitHub Releases:
+
+```sh
+autonomix-cli add https://github.com/ninepointlabs/dogear
+```
+
+**Or by hand**: download `dogear-*-any.pkg.tar.zst` from the release, then
+
+```sh
+sudo pacman -U dogear-*-any.pkg.tar.zst
+```
+
+pacman pulls in what it needs from the official repos: `pyside6`, and `qt6-webengine` for
+the Qt PDF library. `packaging/PKGBUILD` builds the same package from source with
+`makepkg -si`.
+
+## Run it from source
 
 Dogear needs Python 3.12+ and PySide6 with QtPdf. On Arch/Omarchy that's the official
 `pyside6` package, plus `qt6-webengine`, which provides the Qt PDF library (`pyside6` lists
@@ -49,8 +72,8 @@ dogear/bin/dogear path/to/book.pdf # open a file
 Or the equivalent: `PYTHONPATH=src python3 -m dogear [file.pdf]`.
 
 The window's Wayland app id is `dogear`, so in Hyprland it's `class:dogear` in window
-rules. `packaging/` holds a `.desktop` entry (registered for `application/pdf`), icons
-and a PKGBUILD for when Dogear is packaged.
+rules. `packaging/` holds the `.desktop` entry (registered for `application/pdf`), the icons
+and the PKGBUILD.
 
 ## Keyboard
 

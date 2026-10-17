@@ -70,8 +70,10 @@ def main() -> int:
         ps = Path(tmp) / "sample.ps"
         ps.write_text(build_ps(pages))
         subprocess.run(
+            # Letter, always: Ghostscript's default paper follows the
+            # system (A4 in many places), and the tests click by position.
             ["gs", "-q", "-dNOPAUSE", "-dBATCH", "-dSAFER", "-sDEVICE=pdfwrite",
-             f"-sOutputFile={target}", str(ps)],
+             "-sPAPERSIZE=letter", "-dFIXEDMEDIA", f"-sOutputFile={target}", str(ps)],
             check=True,
         )
     print(target)

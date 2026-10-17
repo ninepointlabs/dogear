@@ -213,3 +213,42 @@ class TestEntries(LibraryTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRenameRemove(LibraryTestCase):
+    def test_rename_survives_reopen_and_clears(self):
+        doc = self.open("class/RUHI0110_CC1_BK3.pdf", b"bk3", title="RUHI0110_CC1_BK3")
+        self.store.rename_document(doc.sha256, "  Book 3: Children's Classes  ")
+        again = self.store.open_document(self.tmp / "class/RUHI0110_CC1_BK3.pdf", title="RUHI0110_CC1_BK3")
+        self.assertEqual(again.display_name(), "Book 3: Children's Classes")
+        self.assertEqual(again.title, "RUHI0110_CC1_BK3")
+        row = entries(self.store)[0]
+        self.assertEqual((row["title"], row["pdfTitle"]), ("Book 3: Children's Classes", "RUHI0110_CC1_BK3"))
+        # Search finds it by either name.
+        self.assertEqual(len(entries(self.store, query="children")), 1)
+        self.assertEqual(len(entries(self.store, query="cc1_bk3")), 1)
+        self.store.rename_document(doc.sha256, "")
+        self.assertEqual(self.store.load(doc.sha256).display_name(), "RUHI0110_CC1_BK3")
+
+    def test_display_name_fallbacks(self):
+        self.assertEqual(DocAnnotations("a" * 64, file_name="x.pdf").display_name(), "x")
+        self.assertEqual(DocAnnotations("a" * 64).display_name(), "a" * 12)
+
+    def test_remove_moves_marks_and_copy_aside(self):
+        doc = self.open("class/Bio.pdf", b"bio")
+        doc.add_highlight(0, [Rect(1, 2, 3, 4)], "kept safe")
+        self.store.save(doc)
+        src = self.tmp / "class/Bio.pdf"
+        self.store.keep_copy(doc.sha256, src)
+        target = self.store.remove_document(doc.sha256)
+        self.assertFalse(self.store.has(doc.sha256))
+        self.assertFalse(self.store.copy_path(doc.sha256).exists())
+        self.assertEqual(entries(self.store), [])
+        self.assertEqual([r for r in self.store.recents() if r.sha256 == doc.sha256], [])
+        self.assertTrue(src.is_file())  # the PDF itself is untouched
+        self.assertTrue((target / f"{doc.sha256}.json").is_file())
+        self.assertTrue((target / f"{doc.sha256}.pdf").is_file())
+        self.assertIsNone(self.store.remove_document(doc.sha256))
+        # Opening the PDF again starts a fresh, empty document.
+        again = self.store.open_document(src)
+        self.assertTrue(again.is_empty())

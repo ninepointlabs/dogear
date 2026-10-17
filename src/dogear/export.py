@@ -65,7 +65,7 @@ def render_markdown(
     page_label: Callable[[int], str] | None = None,
     exported_at: datetime | None = None,
 ) -> str:
-    title = doc.title or (Path(doc.file_name).stem if doc.file_name else "Untitled")
+    title = doc.display_name() if (doc.label or doc.title or doc.file_name) else "Untitled"
     stamp = (exported_at or datetime.now().astimezone()).isoformat(timespec="seconds")
     label = page_label or (lambda p: "")
     answers = [a for a in doc.answers if a.text.strip()]

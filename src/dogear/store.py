@@ -332,6 +332,15 @@ class DocAnnotations:
     page_count: int = 0
     pdf_id: str = ""  # the PDF's permanent document ID (trailer /ID), hex
     declined: list[str] = field(default_factory=list)  # copies not to offer marks from again
+    label: str = ""  # the user's own name for it; the PDF's title is re-read on every open
+
+    def display_name(self) -> str:
+        """What to call the document: your name for it, its title, its file name."""
+        if self.label.strip():
+            return self.label.strip()
+        if self.title.strip():
+            return self.title.strip()
+        return Path(self.file_name).stem if self.file_name else self.sha256[:12]
 
     # -- highlights
     def add_highlight(self, page: int, rects: list[Rect], text: str, color: str = DEFAULT_COLOR, note: str = "") -> Highlight:
@@ -501,6 +510,7 @@ class DocAnnotations:
             "page_count": self.page_count,
             "pdf_id": self.pdf_id,
             "declined": self.declined,
+            "label": self.label,
         })
         return data
 
@@ -527,6 +537,7 @@ class DocAnnotations:
             page_count=max(0, _int(raw.get("page_count"))),
             pdf_id=_str(raw.get("pdf_id")),
             declined=_strings(raw.get("declined")),
+            label=_str(raw.get("label")),
         )
         doc.highlights.sort(key=Highlight.sort_key)
         doc.bookmarks.sort(key=lambda b: (b.page, b.y))
@@ -658,7 +669,7 @@ class AnnotationStore:
         doc.page_count = page_count or doc.page_count
         doc.pdf_id = pdf_id or doc.pdf_id
         self.save(doc)
-        self.touch_recent(path, sha, title or doc.title or path.stem)
+        self.touch_recent(path, sha, doc.display_name())
         return doc
 
     # -- library
@@ -747,6 +758,40 @@ class AnnotationStore:
             if name in doc.categories:
                 doc.categories = [c for c in doc.categories if c != name]
                 self.save(doc)
+
+    def rename_document(self, sha: str, label: str) -> DocAnnotations:
+        """Give a document your own name; empty goes back to its own title."""
+        doc = self.load(sha)
+        doc.label = label.strip()
+        self.save(doc)
+        for r in self._index["recent"]:
+            if r.get("sha256") == sha:
+                r["title"] = doc.display_name()
+        self._save_index()
+        return doc
+
+    def remove_document(self, sha: str) -> Path | None:
+        """Take a document out of the library: its marks and Dogear's copy of
+        the PDF move to removed/<sha>-<time>/ (restore by moving them back),
+        and it leaves the recent list. The PDF itself is not touched.
+        Returns the folder they went to, or None if there was nothing."""
+        ann = self.annotation_path(sha)
+        copy = self.copy_path(sha)
+        if not ann.is_file() and not copy.is_file():
+            return None
+        target = self.root / "removed" / f"{sha}-{int(time.time())}"
+        target.mkdir(parents=True, exist_ok=True)
+        if ann.is_file():
+            os.replace(ann, target / ann.name)
+        if copy.is_file():
+            os.replace(copy, target / copy.name)
+        self._index["recent"] = [r for r in self._index["recent"] if r.get("sha256") != sha]
+        # Forget which paths held it, so opening the PDF again starts fresh.
+        self._index["files"] = {
+            k: v for k, v in self._index["files"].items() if not (isinstance(v, dict) and v.get("sha256") == sha)
+        }
+        self._save_index()
+        return target
 
     def set_categories(self, sha: str, names: list[str]) -> DocAnnotations:
         doc = self.load(sha)

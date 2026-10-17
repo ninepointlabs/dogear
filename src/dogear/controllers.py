@@ -199,7 +199,7 @@ class DocumentController(QObject):
     )
     title = Property(
         str,
-        lambda self: (self._ann.title or Path(self._path).stem) if self._ann else "",
+        lambda self: self._ann.display_name() if self._ann else "",
         notify=loadedChanged,
     )
     error = Property(str, lambda self: self._error, notify=loadedChanged)
@@ -749,6 +749,25 @@ class AppController(QObject):
     def removeCategory(self, name: str) -> None:
         self._store.remove_category(name)
         self.libraryChanged.emit()
+
+    @Slot(str, str)
+    def renameDocument(self, sha: str, name: str) -> None:
+        if self._store.has(sha):
+            self._store.rename_document(sha, name)
+            self.libraryChanged.emit()
+            self.refreshRecents()
+
+    @Slot(str, result=str)
+    def removeDocument(self, sha: str) -> str:
+        """Remove a document from the library; returns where its marks went."""
+        try:
+            target = self._store.remove_document(sha)
+        except OSError as exc:
+            log.error("Removing %s failed: %s", sha, exc)
+            return ""
+        self.libraryChanged.emit()
+        self.refreshRecents()
+        return str(target or "")
 
     @Slot(str, "QStringList")
     def setCategories(self, sha: str, names: list[str]) -> None:

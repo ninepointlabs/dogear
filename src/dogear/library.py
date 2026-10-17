@@ -114,7 +114,9 @@ def entry(store: AnnotationStore, doc: DocAnnotations) -> dict:
     counts = doc.counts()
     return {
         "sha256": doc.sha256,
-        "title": doc.title or (Path(doc.file_name).stem if doc.file_name else doc.sha256[:12]),
+        "title": doc.display_name(),
+        "label": doc.label,
+        "pdfTitle": doc.title,
         "fileName": doc.file_name or (Path(last_path).name if last_path else ""),
         "path": path,  # "" when neither the file nor a copy can be found
         "folder": _folder(original or last_path),
@@ -155,7 +157,7 @@ def entries(
         row = entry(store, doc)
         row["inMarks"] = False
         if needle:
-            hay = " ".join([row["title"], row["fileName"], row["folder"], *doc.categories]).casefold()
+            hay = " ".join([row["title"], doc.title, row["fileName"], row["folder"], *doc.categories]).casefold()
             if needle not in hay:
                 if not _matches_marks(doc, needle):
                     continue

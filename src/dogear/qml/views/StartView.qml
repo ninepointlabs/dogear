@@ -86,9 +86,33 @@ FocusScope {
         if (event.text === "/") { search.forceActiveFocus(); event.accepted = true }
     }
 
+    // Narrow windows (a tiling window manager's half screen) put less on
+    // each line: no tagline or key hints, sorting under the search, and a
+    // document's marks and buttons under its title, so the title always shows.
+    readonly property bool narrow: width < 78 * Theme.fontBody
+    readonly property bool compact: width < 54 * Theme.fontBody
+
+    // The buttons for a document, beside it (wide) or under its title (narrow).
+    component RowActions: Row {
+        property var doc
+        spacing: Theme.spaceXxs
+        DgButton { text: "Rename"; hint: start.narrow ? "" : "F2"; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: start.renameDocument(parent.doc) }
+        DgButton { text: "Categories"; hint: start.narrow ? "" : "c"; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: start.editCategories(parent.doc) }
+        DgButton { text: "Remove"; hint: start.narrow ? "" : "Del"; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: start.removeDocument(parent.doc) }
+    }
+
+    function marksText(m) {
+        const parts = []
+        if (m.highlights) parts.push(m.highlights + " highlight" + (m.highlights > 1 ? "s" : ""))
+        if (m.notes) parts.push(m.notes + " note" + (m.notes > 1 ? "s" : ""))
+        if (m.answers) parts.push(m.answers + " answer" + (m.answers > 1 ? "s" : ""))
+        if (m.bookmarks) parts.push(m.bookmarks + " bookmark" + (m.bookmarks > 1 ? "s" : ""))
+        return parts.length ? parts.join(" · ") : "No marks yet"
+    }
+
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.spaceHuge
+        anchors.margins: start.compact ? Theme.spaceXl : Theme.spaceHuge
         spacing: Theme.spaceXl
 
         RowLayout {
@@ -102,24 +126,25 @@ FocusScope {
             DgText {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignBaseline
-                text: AppInfo.tagline
+                text: start.narrow ? "" : AppInfo.tagline
                 secondary: true
             }
             DgText {
+                visible: !start.narrow
                 text: "or drop a PDF here"
                 muted: true
                 role: "small"
             }
             DgButton {
                 text: "Open PDF"
-                hint: "Ctrl+O"
+                hint: start.narrow ? "" : "Ctrl+O"
                 variant: "primary"
                 onClicked: start.openRequested()
             }
             DgButton {
                 objectName: "librarySettings"
                 text: "Settings"
-                hint: "Ctrl+,"
+                hint: start.narrow ? "" : "Ctrl+,"
                 variant: "ghost"
                 focusPolicy: Qt.NoFocus
                 onClicked: start.settingsRequested()
@@ -140,7 +165,8 @@ FocusScope {
 
             // Categories.
             ColumnLayout {
-                Layout.preferredWidth: 15 * Theme.fontBody
+                Layout.preferredWidth: (start.compact ? 9 : start.narrow ? 11 : 15) * Theme.fontBody
+                Layout.maximumWidth: Layout.preferredWidth
                 Layout.fillHeight: true
                 spacing: Theme.spaceSm
                 DgText {
@@ -189,8 +215,8 @@ FocusScope {
                     }
                 }
                 DgButton {
-                    text: "New category"
-                    hint: "n"
+                    text: start.compact ? "New" : "New category"
+                    hint: start.narrow ? "" : "n"
                     variant: "ghost"
                     focusPolicy: Qt.NoFocus
                     onClicked: start.newCategory()
@@ -203,14 +229,16 @@ FocusScope {
                 Layout.fillHeight: true
                 spacing: Theme.spaceMd
 
-                RowLayout {
+                GridLayout {
                     Layout.fillWidth: true
-                    spacing: Theme.spaceLg
+                    columns: start.narrow ? 1 : 2
+                    columnSpacing: Theme.spaceLg
+                    rowSpacing: Theme.spaceSm
                     DgTextField {
                         id: search
                         objectName: "librarySearch"
                         Layout.fillWidth: true
-                        placeholderText: "Search titles, folders, categories and your marks  ( / )"
+                        placeholderText: start.narrow ? "Search  ( / )" : "Search titles, folders, categories and your marks  ( / )"
                         Keys.onDownPressed: start.focusList()
                         Keys.onReturnPressed: { start.focusList(); start.openRow(list.model[0]) }
                         Keys.onEnterPressed: { start.focusList(); start.openRow(list.model[0]) }
@@ -276,8 +304,10 @@ FocusScope {
                             spacing: Theme.spaceLg
                             ColumnLayout {
                                 Layout.fillWidth: true
+                                Layout.minimumWidth: 8 * Theme.fontBody
                                 spacing: 0
                                 DgText {
+                                    objectName: "rowTitle"
                                     Layout.fillWidth: true
                                     text: row.modelData.title
                                     font.weight: Font.DemiBold
@@ -329,27 +359,31 @@ FocusScope {
                                         color: Theme.accent
                                     }
                                 }
+                                // Narrow: marks and buttons go under the title.
+                                DgText {
+                                    Layout.fillWidth: true
+                                    Layout.topMargin: Theme.spaceXs
+                                    visible: start.narrow
+                                    text: start.marksText(row.modelData) + (row.modelData.openedText ? " · " + row.modelData.openedText : "")
+                                    role: "small"
+                                    secondary: true
+                                }
+                                RowActions {
+                                    visible: start.narrow && (row.hovered || row.isCurrent)
+                                    doc: row.modelData
+                                }
                             }
                             // Mouse actions for the row under the pointer or selected.
-                            Row {
-                                visible: row.hovered || row.isCurrent
-                                spacing: Theme.spaceXxs
-                                DgButton { text: "Rename"; hint: "F2"; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: start.renameDocument(row.modelData) }
-                                DgButton { text: "Categories"; hint: "c"; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: start.editCategories(row.modelData) }
-                                DgButton { text: "Remove"; hint: "Del"; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: start.removeDocument(row.modelData) }
+                            RowActions {
+                                visible: !start.narrow && (row.hovered || row.isCurrent)
+                                doc: row.modelData
                             }
                             ColumnLayout {
+                                visible: !start.narrow
                                 spacing: 0
                                 DgText {
                                     Layout.alignment: Qt.AlignRight
-                                    text: {
-                                        const m = row.modelData, parts = []
-                                        if (m.highlights) parts.push(m.highlights + " highlight" + (m.highlights > 1 ? "s" : ""))
-                                        if (m.notes) parts.push(m.notes + " note" + (m.notes > 1 ? "s" : ""))
-                                        if (m.answers) parts.push(m.answers + " answer" + (m.answers > 1 ? "s" : ""))
-                                        if (m.bookmarks) parts.push(m.bookmarks + " bookmark" + (m.bookmarks > 1 ? "s" : ""))
-                                        return parts.length ? parts.join(" · ") : "No marks yet"
-                                    }
+                                    text: start.marksText(row.modelData)
                                     role: "small"
                                     secondary: true
                                 }
@@ -365,9 +399,12 @@ FocusScope {
                 }
 
                 DgText {
+                    Layout.fillWidth: true
                     text: "Enter open · / search · s sort · F2 rename · c categories · Del remove · n new category · ← categories"
                     role: "caption"
                     muted: true
+                    wrapMode: Text.WordWrap
+                    elide: Text.ElideNone
                 }
             }
         }

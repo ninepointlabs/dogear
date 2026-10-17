@@ -484,6 +484,42 @@ class UiSmokeTest(unittest.TestCase):
         self.assertTrue(self.pdf.is_file())
         self.assertGreater(len(store.load(first_sha).highlights), 0)
 
+    def test_narrow_window(self):
+        """A tiling window manager's narrow window: titles stay readable and
+        nothing runs off the right edge."""
+        font = self.engine._dogear_refs[1].property("fontBody")
+        try:
+            self.window.resize(round(40 * font), 900)
+            if self.doc.loaded:
+                self.doc.close()
+            self.wait(300)
+
+            def right_edge(item):
+                return item.mapToScene(QPointF(item.width(), 0)).x()
+
+            def items(item):
+                # List rows aren't QObject children of the window: walk the visual tree.
+                for child in item.childItems():
+                    yield child
+                    yield from items(child)
+
+            titles = [i for i in items(self.window.contentItem()) if i.objectName() == "rowTitle" and i.isVisible()]
+            self.assertGreater(len(titles), 0)
+            for title in titles:
+                self.assertGreater(title.width(), 6 * font, title.property("text"))
+                self.assertLessEqual(right_edge(title), self.window.width() + 1)
+            for name in ("librarySettings", "libraryAbout", "librarySearch"):
+                self.assertLessEqual(right_edge(self.window.findChild(QQuickItem, name)), self.window.width() + 1, name)
+
+            self.assertTrue(self.doc.open(str(self.pdf)))
+            self.wait(400)
+            title = self.window.findChild(QQuickItem, "readerTitle")
+            self.assertGreaterEqual(title.width(), 7 * font - 1)
+            self.assertLessEqual(right_edge(title.parentItem()), self.window.width() + 1)
+        finally:
+            self.window.resize(1200, 900)
+            self.wait(200)
+
     def test_sync_flow(self):
         """Runs last (alphabetical order): the library folder shared with
         another computer, and moving it from Settings."""

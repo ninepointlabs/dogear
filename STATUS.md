@@ -42,6 +42,8 @@ stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 
 - **Website** (added after v0.1): `docs/` is the site for dogear.ninepointlabs.com (GitHub Pages from `main`, `/docs`, with `docs/CNAME`). Its screenshots and the narrated demo video (`docs/media/dogear-demo.mp4`, 1:37) are made from the real app by `tools/demo/make_media.py`: it prints original demo handouts to PDF with headless Chromium, drives Dogear offscreen in real time with real mouse, wheel and key events (`tools/demo/record.py`), and narrates with ElevenLabs (George, `tools/demo/narration.json`, key from `~/.config/elevenlabs/api_key`, cached per line in `tools/demo/work/tts`). It runs with a scratch home, library and theme in `tools/demo/work/` (git-ignored), so your own library and theme are untouched.
 
+- **Narrow windows** (added after v0.1), such as half a screen in a tiling window manager. The library drops the tagline and key hints, puts sorting under the search box, narrows the categories, and moves a document's marks and buttons under its title. The reader's toolbar drops its key hints and zoom buttons, then Fit, Search and Export (their keys still work), and the title always keeps room. The thresholds are in units of the theme's font size, so they follow a bigger Omarchy font. Checked by screenshots at 1500, 950, 640 and 480 px, and a smoke test at 40 font-widths that fails on the old layout (the document title got 0 px).
+
 ## What doesn't (yet)
 
 - **Highlights can't cross pages.** A drag that leaves the page selects to the end of the starting page. Highlight each page separately.

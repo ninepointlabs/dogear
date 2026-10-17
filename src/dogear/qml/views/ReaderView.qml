@@ -13,6 +13,10 @@ Item {
     readonly property alias pages: pages
 
     signal settingsRequested()
+    // Narrow windows (a tiling window manager's half screen) drop toolbar
+    // extras so the title stays readable; the keys still do everything.
+    readonly property bool narrow: width < 80 * Theme.fontBody
+    readonly property bool compact: width < 52 * Theme.fontBody
     signal keysRequested()
     signal openRequested()
 
@@ -119,32 +123,38 @@ Item {
                     onClicked: reader.toggleSidebar()
                 }
                 DgText {
+                    objectName: "readerTitle"
                     Layout.fillWidth: true
+                    // The title always keeps some room; narrow windows drop
+                    // the toolbar's extras instead (their keys still work).
+                    Layout.minimumWidth: 7 * Theme.fontBody
                     text: Doc.title
                     font.weight: Font.DemiBold
                 }
                 DgButton {
-                    text: "Page " + Doc.pageLabel(pages.currentPage) + " / " + Doc.pageCount
+                    text: (reader.narrow ? "" : "Page ") + Doc.pageLabel(pages.currentPage) + " / " + Doc.pageCount
                     variant: "ghost"
-                    hint: "Ctrl+G"
+                    hint: reader.narrow ? "" : "Ctrl+G"
                     onClicked: reader.goToPagePrompt()
                 }
-                DgButton { text: "−"; variant: "ghost"; onClicked: pages.zoomBy(1 / 1.15) }
+                DgButton { visible: !reader.narrow; text: "−"; variant: "ghost"; onClicked: pages.zoomBy(1 / 1.15) }
                 DgText {
+                    visible: !reader.narrow
                     text: Math.round(pages.zoom * 100) + "%"
                     role: "small"
                     secondary: true
                     Layout.minimumWidth: 4 * Theme.fontBody
                     horizontalAlignment: Text.AlignHCenter
                 }
-                DgButton { text: "+"; variant: "ghost"; onClicked: pages.zoomBy(1.15) }
+                DgButton { visible: !reader.narrow; text: "+"; variant: "ghost"; onClicked: pages.zoomBy(1.15) }
                 DgButton {
+                    visible: !reader.compact
                     text: "Fit"
                     variant: pages.fitWidth ? "secondary" : "ghost"
                     onClicked: pages.zoomFit()
                 }
-                DgButton { text: "Search"; hint: "/"; variant: "ghost"; onClicked: reader.openSearch() }
-                DgButton { text: "Export"; hint: "Ctrl+E"; variant: "ghost"; onClicked: Doc.exportMarkdown() }
+                DgButton { visible: !reader.compact; text: "Search"; hint: reader.narrow ? "" : "/"; variant: "ghost"; onClicked: reader.openSearch() }
+                DgButton { visible: !reader.compact; text: "Export"; hint: reader.narrow ? "" : "Ctrl+E"; variant: "ghost"; onClicked: Doc.exportMarkdown() }
                 DgButton { text: "⚙"; variant: "ghost"; onClicked: reader.settingsRequested() }
                 DgButton { text: "?"; variant: "ghost"; onClicked: reader.keysRequested() }
             }
@@ -212,7 +222,7 @@ Item {
             Sidebar {
                 id: sidebar
                 Layout.fillHeight: true
-                Layout.preferredWidth: Math.min(26 * Theme.fontBody, reader.width * 0.4)
+                Layout.preferredWidth: Math.min(26 * Theme.fontBody, Math.max(12 * Theme.fontBody, reader.width * 0.32))
                 visible: reader.sidebarOpen
                 reader: pages
                 prompt: reader.prompt

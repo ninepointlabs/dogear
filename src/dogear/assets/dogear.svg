@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- Dogear: a page with a folded corner and a highlighted line. The app icon is a fixed brand asset; UI colors come from the theme. -->
+  <rect x="8" y="8" width="112" height="112" rx="20" fill="#1d2230"/>
+  <path d="M34 22 H78 L98 42 V106 H34 Z" fill="#f4f1e8"/>
+  <path d="M78 22 V42 H98 Z" fill="#c9c2ad"/>
+  <rect x="44" y="54" width="44" height="9" rx="2" fill="#f5d547"/>
+  <rect x="44" y="70" width="44" height="4" rx="2" fill="#9aa0ad"/>
+  <rect x="44" y="80" width="36" height="4" rx="2" fill="#9aa0ad"/>
+  <rect x="44" y="90" width="40" height="4" rx="2" fill="#9aa0ad"/>
+</svg>

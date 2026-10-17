@@ -57,4 +57,4 @@ stable over 6 consecutive runs) and by a short run on the real Hyprland session.
 
 ## Repo
 
-Local only. All work is on branch `v0.1` (small commits). There is no remote and nothing was pushed. `main` has no commits yet, so merge `v0.1` when you accept it.
+Local only. `v0.1` was merged into `main` (fast-forward). There is no remote and nothing was pushed.

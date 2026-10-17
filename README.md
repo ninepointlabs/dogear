@@ -11,7 +11,9 @@ to Markdown, for example straight into your Obsidian vault.
 
 - A library of every PDF you've opened: search (titles, folders, and the text of your
   highlights, notes and answers), sort and file them under categories.
-- Keeps a private copy of each PDF you mark up, so your marks never lose their PDF.
+- Keeps a copy of each PDF you mark up, so your marks never lose their PDF.
+- Keeps the whole library in one folder (`~/Documents/Dogear` by default) that you can
+  sync between computers with Syncthing, Dropbox, Google Drive and the like.
 - Recognizes another copy of a book you've marked up (a re-download, a new edition)
   and offers to bring your marks over.
 - Opens PDFs from the file dialog, the command line, drag and drop, or the library.
@@ -57,7 +59,7 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 | `Ctrl+O` | Open a PDF |
 | `Ctrl+W`, `Ctrl+L` | Close the PDF, back to the library |
 | `Ctrl+E` | Export to Markdown |
-| `Ctrl+,` | Settings (export folder) |
+| `Ctrl+,` | Settings (library folder, export folder, copies) |
 | `Ctrl+Q` | Quit |
 | `F1`, `?` | Keyboard shortcuts |
 | `j` `k`, `↓` `↑`, mouse wheel | Scroll (the wheel glides, and goes further the faster you spin it; touchpads follow your fingers) |
@@ -140,16 +142,53 @@ with how many highlights, notes, answers and bookmarks it has and when you last 
   name is used for the window title and the export heading. Clear the name to go back.
 - **Remove** a document (`Del`, or Remove) to take it out of the library, after you
   confirm. Its marks and Dogear's copy aren't deleted outright: they move to
-  `~/.local/share/dogear/removed/<sha256>-<time>/`. To restore, move the `.json` back
-  into `annotations/` and the `.pdf` into `library/`. The PDF itself is never touched.
-  Opening it again later starts fresh.
+  `.dogear/removed/<sha256>-<time>/` in the library folder. To restore, move the `.json`
+  back into `.dogear/annotations/` and the `.pdf` into `Library/`. The PDF itself is never
+  touched. Opening it again later starts fresh.
 
 **Your marks always have their PDF.** Dogear never changes your PDFs, and it keeps a
-private copy of every PDF you mark up in `~/.local/share/dogear/library/` (Settings →
-"Keep a copy of every PDF I mark up", on by default; Settings shows the disk space).
-Your files stay where they are, and the library opens the original when it can. If the
-original is moved, renamed or deleted, it opens the copy instead. Documents marked up
-before this existed get their copy a few seconds after Dogear starts.
+copy of every PDF you mark up in the `Library/` folder of the library folder, under the
+PDF's own file name (Settings → "Keep a copy of every PDF I mark up", on by default;
+Settings shows the disk space). Your files stay where they are, and the library opens
+the original when it can. If the original is moved, renamed or deleted, or you're on
+another computer, it opens the copy instead. A PDF you keep inside the library folder
+yourself needs no copy, so it isn't copied. Documents marked up before copies existed
+get theirs a few seconds after Dogear starts.
+
+## Using several computers
+
+Everything Dogear keeps for you lives in one folder, `~/Documents/Dogear` by default:
+
+```
+~/Documents/Dogear/
+├── Library/          copies of the PDFs you mark up ("Ruhi Book 5.pdf", …)
+├── Notes/            Markdown exports (the default export folder)
+└── .dogear/          your marks (one file per PDF), categories, removed documents
+```
+
+Sync that folder (Syncthing, Dropbox, Google Drive, Nextcloud…) and every computer has
+the same library: the same documents, marks, categories, names and reading position.
+On a computer that never had the PDF, the library opens the copy in `Library/`. To use
+another folder, for example one your sync service already covers, change **Library
+folder** in Settings (`Ctrl+,`). Dogear moves the library there. If that folder already
+has a Dogear library (from another computer), the two are merged.
+
+What happens when both computers change things:
+
+- **While a document is open**, Dogear notices when its file changes underneath (another
+  computer's edits arriving) and takes them in. Your own unsaved changes are kept: marks
+  are merged one by one, so a highlight added here and a note added there both stay, and
+  a mark deleted on one computer stays deleted.
+- **If both computers changed the same document before syncing**, the sync service keeps
+  both versions (Syncthing's `….sync-conflict-….json`, Dropbox's "conflicted copy",
+  Google Drive's `(1)`). Dogear merges the conflict copy back in, keeping every mark from
+  both, and moves the conflict file to `.dogear/removed/conflicts/`.
+- A mark changed on both computers keeps the newer edit. A mark deleted on one and edited
+  on the other is kept. The reading position is whichever computer saved last.
+
+What stays on each computer: recent files (in `~/.local/share/dogear`),
+and settings (in `~/.config/dogear`). If the library folder isn't there (sync not set up
+yet, a drive not mounted), Dogear starts an empty library in it.
 
 **Other copies of the same book.** Marks belong to the exact bytes of a file. A
 re-download or a new edition is a different file and would open blank. When a PDF with
@@ -162,8 +201,8 @@ asks again next time. If the editions' pages differ, some brought-over marks may
 
 ## Markdown export
 
-`Ctrl+E` writes `<pdf name>.md` into the export folder. The default folder is
-`~/Documents/Dogear`. To use your Obsidian vault, open Settings (`Ctrl+,`) and pick a folder
+`Ctrl+E` writes `<pdf name>.md` into the export folder. The default folder is `Notes/` in
+the library folder (`~/Documents/Dogear/Notes`). To use your Obsidian vault, open Settings (`Ctrl+,`) and pick a folder
 inside the vault.
 
 ```markdown
@@ -211,15 +250,24 @@ second one is exported as `<name> (<hash prefix>).md`.
 
 ## Storage
 
-Annotations live in a central store, one JSON file per PDF:
+Annotations live in the library folder, one JSON file per PDF:
 
 ```
-~/.local/share/dogear/              ($XDG_DATA_HOME/dogear, or $DOGEAR_DATA_DIR)
-├── index.json                      recent files, categories, path → hash cache
-├── annotations/<sha256>.json       one PDF's highlights, notes, bookmarks, answers, position
-└── library/<sha256>.pdf            private copies of marked-up PDFs
-~/.config/dogear/settings.json      export folder
+~/Documents/Dogear/                 the library folder (Settings, or $DOGEAR_LIBRARY_DIR)
+├── Library/<file name>.pdf         copies of marked-up PDFs
+├── Notes/                          Markdown exports, by default
+└── .dogear/
+    ├── annotations/<sha256>.json   one PDF's highlights, notes, bookmarks, answers, position
+    ├── library.json                categories
+    └── removed/                    removed documents, set-aside sync conflict copies
+~/.local/share/dogear/index.json    this computer's recent files and path → hash cache
+                                    ($XDG_DATA_HOME/dogear, or $DOGEAR_DATA_DIR)
+~/.config/dogear/settings.json      library folder, export folder, copies on/off
 ```
+
+Earlier versions kept everything in `~/.local/share/dogear`. The first start of this
+version moves it into the library folder (merging with a library already there) and
+leaves the old notes files, renamed `annotations.moved-<time>/`, next to a `MOVED.txt`.
 
 **Why a central store keyed by file hash and not a sidecar file next to the PDF:**
 

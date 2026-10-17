@@ -48,6 +48,32 @@ class TestFindRules(unittest.TestCase):
         page.text(20, 60, 260)
         self.assertEqual(page.rules(), [])
 
+    def serif_word(self, page, x, y, w, size=10):
+        """Letters standing on the baseline, with serif feet along it."""
+        page.text(x, y, w, size)
+        for i in range(int(w / 3)):
+            page.fill(x + i * 3 - 0.5, y - 1, 2.4, 1)
+
+    def test_blank_with_a_word_close_after_it(self):
+        # "______ and ______ light.": the word after the first blank starts
+        # within dot-joining distance, and its feet sit on the line.
+        page = Page()
+        page.line(50, 100, 100, thick=1)
+        self.serif_word(page, 152, 100.5, 18)
+        page.line(176, 100, 60, thick=1)
+        rules = page.rules()
+        self.assertEqual(len(rules), 2, rules)
+        self.assertAlmostEqual(rules[0]["x"], 50, delta=0.6)
+        self.assertAlmostEqual(rules[0]["w"], 100, delta=1.5)
+
+    def test_dot_leader_into_a_title_is_not_a_blank(self):
+        # "Life's Springtime ........ 1" in a table of contents.
+        page = Page()
+        self.serif_word(page, 30, 100.5, 60)
+        for i in range(40):
+            page.fill(91 + i * 4, 99.2, 1.5, 1.5)
+        self.assertEqual(page.rules(), [])
+
     def test_hyphen_is_not_a_line(self):
         page = Page()
         page.line(50, 100, 8)

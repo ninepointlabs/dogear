@@ -68,7 +68,10 @@ def find_rules(gray: bytes, width: int, height: int, stride: int, scale: float) 
     open_bands: list[list[int]] = []
     for r, x0, x1 in runs:
         for band in open_bands:
-            if band[1] >= r - 1 and min(x1, band[3]) - max(x0, band[2]) > 0.6 * min(x1 - x0, band[3] - band[2]):
+            # Rows of one line are about as long as each other; a word
+            # sitting on the end of a line is not part of it.
+            short, long_ = sorted((x1 - x0, band[3] - band[2]))
+            if band[1] >= r - 1 and min(x1, band[3]) - max(x0, band[2]) > 0.6 * short and short >= 0.5 * long_:
                 band[1] = r
                 band[2] = min(band[2], x0)
                 band[3] = max(band[3], x1)
@@ -95,7 +98,28 @@ def find_rules(gray: bytes, width: int, height: int, stride: int, scale: float) 
         if below < height and _ink(rows[below][x0:x1]) > 0.25 * span:
             continue
 
-        # 4. A short line is only a blank with space at both ends (an em
+        # 4. A line with vertical strokes at both ends is the edge of a box
+        # or a table, not something to write on.
+        if _vertical_at(rows, x0, top, bottom, probe, scale) and _vertical_at(rows, x1 - probe, top, bottom, probe, scale):
+            continue
+
+        # 5. A blank drawn on the baseline picks up the feet of the word
+        # right after it ("____ and"). Letters rise from the line; a blank
+        # doesn't: trim them off its ends.
+        trimmed0, trimmed1 = _trim_letters(rows, top, bottom, x0, x1, scale)
+        if (trimmed0, trimmed1) != (x0, x1):
+            # A dotted line running into a word is a dot leader in a table
+            # of contents ("Life's Springtime ........ 1"), not a blank.
+            solid = max(_ink(rows[r][trimmed0:trimmed1]) for r in range(top, bottom + 1))
+            if solid < 0.7 * (trimmed1 - trimmed0):
+                continue
+        x0, x1 = trimmed0, trimmed1
+        span = x1 - x0
+        if span < min_len:
+            continue
+        inner0, inner1 = x0 + probe, x1 - probe
+
+        # 6. A short line is only a blank with space at both ends (an em
         # dash looks the same but touches the letters beside it)...
         if span < SHORT_PT * scale and not (_clear_beside(rows, x0, top, bottom, scale, -1)
                                             and _clear_beside(rows, x1, top, bottom, scale, 1)):
@@ -107,12 +131,7 @@ def find_rules(gray: bytes, width: int, height: int, stride: int, scale: float) 
         ):
             continue
 
-        # 5. A line with vertical strokes at both ends is the edge of a box
-        # or a table, not something to write on.
-        if _vertical_at(rows, x0, top, bottom, probe, scale) and _vertical_at(rows, x1 - probe, top, bottom, probe, scale):
-            continue
-
-        # 6. Measure the blank room above, where the answer is written.
+        # 7. Measure the blank room above, where the answer is written.
         # Ignore a few stray pixels (descenders poking in, a table's
         # vertical borders at the ends).
         r = top - 1
@@ -130,6 +149,39 @@ def find_rules(gray: bytes, width: int, height: int, stride: int, scale: float) 
         })
     rules.sort(key=lambda d: (d["y"], d["x"]))
     return _merge_split(rules)
+
+
+def _trim_letters(rows: list[bytes], top: int, bottom: int, x0: int, x1: int, scale: float) -> tuple[int, int]:
+    """Cut a word off the ends of a line. The line is split at its gaps;
+    an end piece with ink rising out of it is letters (their serifs and
+    feet sit on the line), and goes."""
+    above = [rows[r] for r in range(max(0, top - max(2, round(1.5 * scale))), top)]
+    band = [rows[r] for r in range(top, bottom + 1)]
+    if not above:
+        return x0, x1
+
+    def letter(x: int) -> bool:
+        return any(row[x] == 35 for row in above)  # 35: "#"
+
+    def bare(x: int) -> bool:
+        return all(row[x] != 35 for row in band)
+
+    # Pieces of ink between bare columns, left to right.
+    pieces: list[list[int]] = []
+    x = x0
+    while x < x1:
+        if bare(x):
+            x += 1
+            continue
+        start = x
+        while x < x1 and not bare(x):
+            x += 1
+        pieces.append([start, x])
+    while len(pieces) > 1 and any(letter(c) for c in range(*pieces[-1])):
+        pieces.pop()
+    while len(pieces) > 1 and any(letter(c) for c in range(*pieces[0])):
+        pieces.pop(0)
+    return (pieces[0][0], pieces[-1][1]) if pieces else (x0, x1)
 
 
 def _clear_beside(rows: list[bytes], x: int, top: int, bottom: int, scale: float, side: int) -> bool:

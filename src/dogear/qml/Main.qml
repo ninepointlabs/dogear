@@ -46,6 +46,7 @@ Window {
             categoriesDialog: categories
             onOpenRequested: openDialog.open()
             onSettingsRequested: settings.show(window.restoreFocus)
+            onAboutRequested: about.show(window.restoreFocus)
         }
     }
     Component {
@@ -107,8 +108,16 @@ Window {
             onActivated: { Doc.adoptMarks(copyDialog.other.sha256); copyDialog.close() }
         }
     }
-    SettingsDialog { id: settings; objectName: "settingsDialog" }
-    KeysDialog { id: keys }
+    SettingsDialog {
+        id: settings
+        objectName: "settingsDialog"
+        onAboutRequested: { close(); about.show(window.restoreFocus) }
+    }
+    KeysDialog {
+        id: keys
+        onAboutRequested: { close(); about.show(window.restoreFocus) }
+    }
+    AboutDialog { id: about }
     DgToast { id: toast }
 
     Connections {

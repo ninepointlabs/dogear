@@ -6,6 +6,7 @@ import "../components"
 DgDialog {
     id: dialog
     title: "Keyboard shortcuts"
+    signal aboutRequested()
     width: Math.min(parent ? parent.width - 2 * Theme.spaceHuge : 720, 60 * Theme.fontBody)
 
     readonly property var groups: [
@@ -73,5 +74,8 @@ DgDialog {
         }
     }
 
-    buttons: [ DgButton { text: "Close"; hint: "Esc"; variant: "primary"; onClicked: dialog.close() } ]
+    buttons: [
+        DgButton { text: "About Dogear"; variant: "ghost"; onClicked: dialog.aboutRequested() },
+        DgButton { text: "Close"; hint: "Esc"; variant: "primary"; onClicked: dialog.close() }
+    ]
 }

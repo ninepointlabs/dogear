@@ -38,6 +38,8 @@ stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 - Performance with a generated 400-page PDF: open in about 0.4 s. Only pages near the viewport render, off the UI thread.
 - No network code and no telemetry.
 
+- **About dialog** (added after v0.1): from the library header, Settings and the shortcuts list (`?`). It shows version, Nine Point Labs, created October 2026, MIT License with the full text, support email (Email opens your mail app with version details filled in; Copy copies it), privacy (no telemetry, no network) and Qt/PySide6/Python versions, plus "Copy version details". The bundled license copy is tested against `LICENSE`.
+
 ## What doesn't (yet)
 
 - **Highlights can't cross pages.** A drag that leaves the page selects to the end of the starting page. Highlight each page separately.

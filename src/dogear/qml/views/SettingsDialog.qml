@@ -7,6 +7,7 @@ import "../components"
 DgDialog {
     id: dialog
     title: "Settings"
+    signal aboutRequested()
 
     onOpened: {
         libraryField.text = App.libraryFolderIsDefault ? "" : App.libraryFolder
@@ -146,6 +147,7 @@ DgDialog {
     }
 
     buttons: [
+        DgButton { text: "About Dogear"; variant: "ghost"; onClicked: dialog.aboutRequested() },
         DgButton { text: "Cancel"; hint: "Esc"; onClicked: dialog.close() },
         DgButton { text: "Save"; hint: "Enter"; variant: "primary"; onClicked: dialog.save() }
     ]

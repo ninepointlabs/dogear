@@ -97,7 +97,9 @@ and `Del` deletes. In Bookmarks, `r`/`F2` renames and `Del` deletes.
 In the library: `/` searches, `s` changes the sort order, `F2` renames a document, `Del`
 removes it, `c` sets its categories, `n` makes a new category, `←` `→` move between categories and documents, and
 in the category list `F2` renames and `Del` deletes a category. Settings is the button next to
-Open PDF, or `Ctrl+,` anywhere.
+Open PDF, or `Ctrl+,` anywhere. **About** (in the library, Settings and the shortcuts list)
+shows the version, license, Nine Point Labs and the support address,
+[help@ninepointlabs.com](mailto:help@ninepointlabs.com).
 
 ## Answer lines
 

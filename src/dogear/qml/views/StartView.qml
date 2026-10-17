@@ -15,6 +15,7 @@ FocusScope {
     property var categoriesDialog: null
     signal openRequested()
     signal settingsRequested()
+    signal aboutRequested()
 
     readonly property var sorts: [
         { key: "recent", name: "Recent" }, { key: "title", name: "Title" },
@@ -122,6 +123,13 @@ FocusScope {
                 variant: "ghost"
                 focusPolicy: Qt.NoFocus
                 onClicked: start.settingsRequested()
+            }
+            DgButton {
+                objectName: "libraryAbout"
+                text: "About"
+                variant: "ghost"
+                focusPolicy: Qt.NoFocus
+                onClicked: start.aboutRequested()
             }
         }
 

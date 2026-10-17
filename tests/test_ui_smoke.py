@@ -220,9 +220,18 @@ class UiSmokeTest(unittest.TestCase):
         self.type_text("red")
         self.key(Qt.Key.Key_Return)  # a single blank: Enter moves on
         self.type_text("blue")
+        # Ctrl+= grows the answer's text, not the page. (Ctrl+- can't be
+        # sent through the offscreen platform's keymap, so it isn't tested.)
+        zoom_before = self.page_view().property("zoom")
+        size_before = self.doc.answersOnPage(5)[-1]["size"]
+        self.key(Qt.Key.Key_Equal, Qt.KeyboardModifier.ControlModifier)
+        self.key(Qt.Key.Key_Equal, Qt.KeyboardModifier.ControlModifier)
+        self.assertEqual(self.page_view().property("zoom"), zoom_before)
+        self.assertGreater(self.doc.answersOnPage(5)[-1]["size"], size_before)
+        self.type_text("!")  # still typing in the same answer
         self.key(Qt.Key.Key_Escape)
         answers = [a for p in range(6) for a in self.doc.answersOnPage(p)]
-        self.assertEqual([a["text"] for a in answers], ["Photosynthesis?", "Carbon is fixed\ninto sugar", "red", "blue"])
+        self.assertEqual([a["text"] for a in answers], ["Photosynthesis?", "Carbon is fixed\ninto sugar", "red", "blue!"])
         self.assertEqual(answers[0]["context"], "1. Name of the process:")
         self.assertEqual(answers[1]["lines"], 3)
         self.assertEqual(answers[2]["context"], "3. Plants absorb ___ and ___ light.")

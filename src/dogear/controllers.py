@@ -487,6 +487,15 @@ class DocumentController(QObject):
             # editor keeps its focus and cursor.
             self._view_timer.start()
 
+    @Slot(str, float)
+    def setAnswerSize(self, aid: str, size: float) -> None:
+        """Text size of an answer in points, for squeezing more onto a line."""
+        ans = self._ann.answer(aid) if self._ann else None
+        if ans and 4.0 <= size <= 36.0 and ans.size != size:
+            self._ann.set_answer_size(aid, size)
+            # Like typing: saved shortly after, no rebuild of the editor.
+            self._view_timer.start()
+
     @Slot(str)
     def finishAnswer(self, aid: str) -> None:
         """Typing in an answer ended: drop it if it was left blank."""

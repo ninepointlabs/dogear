@@ -284,6 +284,14 @@ Item {
     // get the keyboard until its editor exists (it may be on a page that is
     // only now scrolling into view).
     property string focusAnswer: ""
+    // The answer editor that has the keyboard, if any.
+    property var activeAnswer: null
+    // Ctrl+= / Ctrl+- resize the answer being typed instead of zooming.
+    function resizeAnswer(step) {
+        if (!activeAnswer || !activeAnswer.activeFocus) return false
+        activeAnswer.resize(step)
+        return true
+    }
     property int focusAnswerPage: -1
     function editAnswer(page, aid) {
         hideNoteTip()
@@ -518,6 +526,44 @@ Item {
         }
     }
 
+
+    // While typing an answer: its text size, at the bottom of the view so
+    // it never covers the page around the answer.
+    Rectangle {
+        id: answerBar
+        readonly property var a: view.activeAnswer
+        visible: a !== null && a.activeFocus
+        z: 55
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: Theme.spaceXl
+        width: answerRow.implicitWidth + 2 * Theme.spaceSm
+        height: answerRow.implicitHeight + 2 * Theme.spaceSm
+        radius: Theme.radius
+        color: Theme.bgRaised
+        border.width: Theme.borderWidth
+        border.color: Theme.focusRing
+        Row {
+            id: answerRow
+            anchors.centerIn: parent
+            spacing: Theme.spaceSm
+            DgText {
+                anchors.verticalCenter: parent.verticalCenter
+                leftPadding: Theme.spaceSm
+                text: "Answer text " + (answerBar.a ? answerBar.a.size : "") + " pt"
+                muted: true
+            }
+            DgButton { text: "A−"; hint: "Ctrl+-"; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: view.resizeAnswer(-1) }
+            DgButton { text: "A+"; hint: "Ctrl+="; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: view.resizeAnswer(1) }
+            DgText {
+                anchors.verticalCenter: parent.verticalCenter
+                rightPadding: Theme.spaceSm
+                text: "Tab next · Esc done"
+                role: "caption"
+                muted: true
+            }
+        }
+    }
 
     Rectangle {
         id: noteTip

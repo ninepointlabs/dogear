@@ -412,6 +412,16 @@ class DocAnnotations:
             ans.updated = now_iso()
         return ans
 
+    def set_answer_size(self, aid: str, size: float) -> Answer:
+        ans = self.answer(aid)
+        if ans is None:
+            raise KeyError(aid)
+        if not 3.0 <= size <= 72.0:
+            raise ValueError(f"answer text size out of range: {size}")
+        ans.size = size
+        ans.updated = now_iso()
+        return ans
+
     def remove_answer(self, aid: str) -> bool:
         before = len(self.answers)
         self.answers = [a for a in self.answers if a.id != aid]

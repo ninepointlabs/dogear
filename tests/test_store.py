@@ -88,6 +88,10 @@ class TestDocAnnotations(unittest.TestCase):
         self.assertEqual(len(doc.answers_on_page(1)), 2)
         with self.assertRaises(KeyError):
             doc.set_answer_text("missing", "x")
+        doc.set_answer_size(first.id, 9.5)
+        self.assertEqual(doc.answer(first.id).size, 9.5)
+        with self.assertRaises(ValueError):
+            doc.set_answer_size(first.id, 500)
         self.assertFalse(doc.is_empty())
         self.assertTrue(doc.remove_answer(other.id))
         self.assertFalse(doc.remove_answer(other.id))

@@ -275,11 +275,19 @@ Item {
             id: ans
             required property var modelData
             readonly property bool ruled: modelData.lines > 1 && modelData.pitch > 0
-            readonly property real basePx: modelData.size * page.s
+            // Text size in points; Ctrl+= / Ctrl+- or the A− A+ buttons change it.
+            property real size: modelData.size
+            readonly property real basePx: size * page.s
+            function resize(step) {
+                const next = Math.round(Math.max(4, Math.min(36, step > 0 ? size * 1.1 : size / 1.1)) * 2) / 2
+                if (next === size) return
+                size = next
+                Doc.setAnswerSize(modelData.id, next)
+            }
             // A single line shrinks its text to fit before it wraps.
             readonly property real fitPx: ruled ? basePx
                 : Math.max(basePx * 0.6, Math.min(basePx, basePx * width * 0.97 / Math.max(1, natural.advanceWidth)))
-            readonly property real lift: Math.max(1.5, modelData.size * 0.25) * page.s
+            readonly property real lift: Math.max(1.5, Math.min(size, modelData.size) * 0.25) * page.s
 
             // The first baseline sits just above the first line. Qt puts the
             // text of a fixed-height line at its bottom, descent included.
@@ -335,8 +343,10 @@ Item {
                 if (activeFocus) {
                     page.pageView.hideNoteTip()
                     page.blank = null
+                    page.pageView.activeAnswer = ans
                     return
                 }
+                if (page.pageView.activeAnswer === ans) page.pageView.activeAnswer = null
                 const aid = modelData.id
                 Qt.callLater(() => Doc.finishAnswer(aid))
             }
@@ -351,6 +361,8 @@ Item {
                     const step = event.key === Qt.Key_Backtab || shift ? -1 : 1
                     // Later: moving on rebuilds this editor.
                     Qt.callLater(() => page.pageView.moveAnswer(aid, step))
+                } else if (ctrl && (event.key === Qt.Key_Equal || event.key === Qt.Key_Plus || event.key === Qt.Key_Minus)) {
+                    ans.resize(event.key === Qt.Key_Minus ? -1 : 1)
                 } else if (enter && !shift && !ans.ruled) {
                     Qt.callLater(() => page.pageView.moveAnswer(aid, 1))
                 } else {

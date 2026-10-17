@@ -444,6 +444,18 @@ class UiSmokeTest(unittest.TestCase):
         row = self.library_rows()[0]
         self.assertEqual(row["title"], "Biology, second download")
         self.assertEqual(row["pdfTitle"], "Dogear sample")
+        # The library has a Settings button.
+        button = self.window.findChild(QQuickItem, "librarySettings")
+        self.assertTrue(button.isVisible())
+        centre = button.mapToScene(QPointF(button.width() / 2, button.height() / 2))
+        QTest.mouseClick(self.window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         QPoint(round(centre.x()), round(centre.y())))
+        self.wait(200)
+        settings = self.window.findChild(QObject, "settingsDialog")
+        self.assertTrue(settings.property("opened"))
+        self.key(Qt.Key.Key_Escape)
+        self.wait(200)
+        self.assertFalse(settings.property("opened"))
         self.key(Qt.Key.Key_Delete)
         self.assertTrue(self.window.findChild(QObject, "confirmDialog").property("opened"))
         self.key(Qt.Key.Key_Return)

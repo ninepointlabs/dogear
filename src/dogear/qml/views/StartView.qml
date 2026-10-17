@@ -14,6 +14,7 @@ FocusScope {
     property var confirm: null
     property var categoriesDialog: null
     signal openRequested()
+    signal settingsRequested()
 
     readonly property var sorts: [
         { key: "recent", name: "Recent" }, { key: "title", name: "Title" },
@@ -113,6 +114,14 @@ FocusScope {
                 hint: "Ctrl+O"
                 variant: "primary"
                 onClicked: start.openRequested()
+            }
+            DgButton {
+                objectName: "librarySettings"
+                text: "Settings"
+                hint: "Ctrl+,"
+                variant: "ghost"
+                focusPolicy: Qt.NoFocus
+                onClicked: start.settingsRequested()
             }
         }
 

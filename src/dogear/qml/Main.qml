@@ -45,6 +45,7 @@ Window {
             confirm: confirmDialog
             categoriesDialog: categories
             onOpenRequested: openDialog.open()
+            onSettingsRequested: settings.show(window.restoreFocus)
         }
     }
     Component {

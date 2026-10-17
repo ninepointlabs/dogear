@@ -311,5 +311,81 @@ class UiSmokeTest(unittest.TestCase):
         self.assertEqual(self.pdf.read_bytes(), self.pdf_bytes)
 
 
+    def library_rows(self):
+        view = self.window.findChild(QQuickItem, "library")
+        rows = view.property("rows")
+        return rows.toVariant() if hasattr(rows, "toVariant") else rows
+
+    def test_library_flow(self):
+        """Runs after the end-to-end flow (alphabetical order) and uses its marks."""
+        from PySide6.QtCore import QObject
+
+        store = self.engine._dogear_refs[2]
+        if not self.doc.loaded:
+            self.assertTrue(self.doc.open(str(self.pdf)))
+            self.wait(300)
+        first_sha = store.identify(self.pdf)
+        self.assertGreater(len(self.doc.highlights), 0, "needs the marks from test_end_to_end")
+        # A marked-up PDF gets a private copy in the library.
+        self.assertTrue(store.copy_path(first_sha).is_file())
+
+        # Another download of the same book: different bytes, same name and pages.
+        second = Path(self._tmp.name) / "new download" / "class notes.pdf"
+        second.parent.mkdir()
+        subprocess.run([sys.executable, str(ROOT / "tools" / "make_sample_pdf.py"), str(second), "6"],
+                       check=True, capture_output=True)
+        self.assertNotEqual(store.identify(second), first_sha)
+        self.assertTrue(self.doc.open(str(second)))
+        self.wait(300)
+        dialog = self.window.findChild(QObject, "copyDialog")
+        self.assertTrue(dialog.property("opened"), "offer to bring marks over")
+        self.key(Qt.Key.Key_Return)
+        self.wait(200)
+        self.assertEqual(len(self.doc.highlights), 2)
+        self.assertEqual(sum(len(self.doc.answersOnPage(p)) for p in range(6)), 3)
+        second_sha = store.identify(second)
+        self.assertTrue(store.copy_path(second_sha).is_file())
+
+        # Back to the library (Ctrl+L): both copies, newest first.
+        self.key(Qt.Key.Key_L, Qt.KeyboardModifier.ControlModifier)
+        self.wait(300)
+        self.assertFalse(self.doc.loaded)
+        rows = self.library_rows()
+        self.assertEqual([r["sha256"] for r in rows], [second_sha, first_sha])
+
+        # File the newest under a new category with c, typing its name.
+        self.key(Qt.Key.Key_C)
+        self.type_text("Biology")
+        self.key(Qt.Key.Key_Return)  # adds and ticks it
+        self.key(Qt.Key.Key_Return, Qt.KeyboardModifier.ControlModifier)  # saves
+        self.wait(200)
+        self.assertEqual(store.categories(), ["Biology"])
+        self.assertEqual(store.load(second_sha).categories, ["Biology"])
+        self.assertEqual(self.library_rows()[0]["categories"], ["Biology"])
+
+        # Search inside marks: "/" then text from a note.
+        self.key(Qt.Key.Key_Slash)
+        self.type_text("on the exam")
+        rows = self.library_rows()
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(r["inMarks"] for r in rows))
+        self.key(Qt.Key.Key_Escape)
+        self.assertEqual(len(self.library_rows()), 2)
+
+        # The original goes away: the library opens Dogear's copy.
+        second.unlink()
+        self.window.findChild(QQuickItem, "library").setProperty("rev", 99)
+        self.wait(100)
+        row = self.library_rows()[0]
+        self.assertFalse(row["original"])
+        self.assertEqual(row["path"], str(store.copy_path(second_sha)))
+        self.key(Qt.Key.Key_Return)
+        self.wait(300)
+        self.assertTrue(self.doc.loaded)
+        self.assertEqual(len(self.doc.highlights), 2)
+        self.assertEqual(self.doc.fileName, "class notes.pdf")
+        self.assertEqual(Path(self.doc.path), store.copy_path(second_sha))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -11,7 +11,7 @@ from PySide6.QtGui import QGuiApplication, QTextBlockFormat, QTextCursor
 from PySide6.QtPdf import QPdfDocument, QPdfSearchModel
 from PySide6.QtQuick import QQuickTextDocument
 
-from . import config, pdf, rules
+from . import config, library, pdf, rules
 from .export import export_markdown
 from .store import HIGHLIGHT_COLORS, AnnotationStore, Answer, DocAnnotations, Rect, ViewState, clean_pdf_text
 
@@ -30,6 +30,9 @@ class DocumentController(QObject):
     searchChanged = Signal()
     message = Signal(str)  # transient notice for the toast
     opened = Signal()  # a document finished loading; the view restores its position
+    # A marked-up copy of this document exists elsewhere (another download
+    # or edition): {sha256, title, fileName, highlights, notes, answers, ...}.
+    copyFound = Signal("QVariantMap")
 
     def __init__(self, store: AnnotationStore, app: AppController, parent=None):
         super().__init__(parent)
@@ -78,7 +81,9 @@ class DocumentController(QObject):
             return False
         title = (self._pdf.metaData(QPdfDocument.MetaDataField.Title) or "").strip()
         try:
-            self._ann = self._store.open_document(path, title=title)
+            self._ann = self._store.open_document(
+                path, title=title, page_count=self._pdf.pageCount(), pdf_id=library.pdf_id(path)
+            )
         except OSError as exc:
             self._pdf.close()
             self._fail(f"Could not read {path.name}: {exc}")
@@ -98,8 +103,42 @@ class DocumentController(QObject):
             self.message.emit("This PDF changed since you last read it; your annotations were carried over.")
             self._ann.carried_from = ""
             self._save()
+        self._keep_copy()
+        if self._store.is_library_copy(Path(self._path)):
+            self.message.emit("The original PDF wasn't found, so this is Dogear's copy of it.")
         self.opened.emit()
+        if self._ann.is_empty():
+            copies = library.find_copies(self._store, self._ann)
+            if copies:
+                self.copyFound.emit(library.entry(self._store, copies[0]))
         return True
+
+    def _keep_copy(self) -> None:
+        """Copy a marked-up PDF into the library (setting, on by default)."""
+        if self._ann is None or self._ann.is_empty() or not self._app.settings.keep_copies:
+            return
+        try:
+            self._store.keep_copy(self._ann.sha256, Path(self._path))
+        except OSError as exc:
+            log.warning("Could not copy %s into the library: %s", self._path, exc)
+
+    @Slot(str)
+    def adoptMarks(self, sha: str) -> None:
+        """Bring the marks of another copy (from copyFound) into this one."""
+        if self._ann is None or not self._store.has(sha) or sha == self._ann.sha256:
+            return
+        other = self._store.load(sha)
+        self._ann.adopt_marks(other)
+        self._ann.carried_from = ""
+        self._changed()
+        self.message.emit(f"Brought over {sum(other.counts().values())} marks. Check that they line up with this copy.")
+
+    @Slot(str)
+    def declineCopy(self, sha: str) -> None:
+        """Don't offer marks from that copy for this document again."""
+        if self._ann is not None and sha not in self._ann.declined:
+            self._ann.declined.append(sha)
+            self._save()
 
     def _fail(self, text: str) -> None:
         log.warning(text)
@@ -140,6 +179,7 @@ class DocumentController(QObject):
 
     def _changed(self) -> None:
         self._save()
+        self._keep_copy()
         self._revision += 1
         self.annotationsChanged.emit()
 
@@ -151,7 +191,12 @@ class DocumentController(QObject):
     loaded = Property(bool, lambda self: self._ann is not None, notify=loadedChanged)
     path = Property(str, lambda self: self._path, notify=loadedChanged)
     url = Property(QUrl, lambda self: QUrl.fromLocalFile(self._path) if self._path else QUrl(), notify=loadedChanged)
-    fileName = Property(str, lambda self: Path(self._path).name if self._path else "", notify=loadedChanged)
+    # The document's own name, also when it was opened from the library copy.
+    fileName = Property(
+        str,
+        lambda self: (self._ann.file_name or Path(self._path).name) if self._ann else "",
+        notify=loadedChanged,
+    )
     title = Property(
         str,
         lambda self: (self._ann.title or Path(self._path).stem) if self._ann else "",
@@ -584,6 +629,27 @@ class AppController(QObject):
         self._last_color = "yellow"
         self._recents: list[dict] = []
         self.refreshRecents()
+        # Documents marked up before copies were kept get theirs shortly
+        # after start, one per tick so the window stays responsive.
+        self._backfill: list[str] | None = None
+        QTimer.singleShot(3000, self._backfill_copy)
+
+    def _backfill_copy(self) -> None:
+        if not self.settings.keep_copies:
+            return
+        if self._backfill is None:
+            self._backfill = [d.sha256 for d in self._store.documents()
+                              if not d.is_empty() and not self._store.copy_path(d.sha256).is_file()]
+        if not self._backfill:
+            return
+        doc = self._store.load(self._backfill.pop(0))
+        path = self._store.openable_path(doc)
+        if path and not self._store.is_library_copy(Path(path)):
+            try:
+                self._store.keep_copy(doc.sha256, Path(path))
+            except OSError as exc:
+                log.warning("Could not copy %s into the library: %s", path, exc)
+        QTimer.singleShot(200, self._backfill_copy)
 
     @Slot()
     def refreshRecents(self) -> None:
@@ -628,6 +694,67 @@ class AppController(QObject):
         self.settingsChanged.emit()
 
     dataDir = Property(str, lambda self: str(self._store.root), constant=True)
+    libraryDir = Property(str, lambda self: str(self._store.library_dir), constant=True)
+
+    @Property(bool, notify=settingsChanged)
+    def keepCopies(self) -> bool:
+        return self.settings.keep_copies
+
+    @Slot(bool)
+    def setKeepCopies(self, value: bool) -> None:
+        if self.settings.keep_copies == value:
+            return
+        self.settings.keep_copies = value
+        try:
+            config.save_settings(self.settings)
+        except OSError as exc:
+            log.error("Saving settings failed: %s", exc)
+        self.settingsChanged.emit()
+
+    @Slot(result=str)
+    def copiesSize(self) -> str:
+        """Disk space the library's PDF copies take, for Settings."""
+        total = sum(f.stat().st_size for f in self._store.library_dir.glob("*.pdf")) if self._store.library_dir.is_dir() else 0
+        for unit in ("bytes", "KB", "MB", "GB"):
+            if total < 1024 or unit == "GB":
+                return f"{total:.0f} {unit}" if unit == "bytes" else f"{total:.1f} {unit}"
+            total /= 1024
+        return ""
+
+    # -- library
+    libraryChanged = Signal()
+
+    @Slot(str, str, str, result="QVariantList")
+    def library(self, query: str, sort: str, category: str) -> list[dict]:
+        return library.entries(self._store, query, sort, category)
+
+    @Slot(result="QVariantList")
+    def categoryList(self) -> list[dict]:
+        return library.category_counts(self._store)
+
+    categories = Property("QStringList", lambda self: self._store.categories(), notify=libraryChanged)
+
+    @Slot(str, result=str)
+    def addCategory(self, name: str) -> str:
+        made = self._store.add_category(name)
+        self.libraryChanged.emit()
+        return made
+
+    @Slot(str, str)
+    def renameCategory(self, old: str, new: str) -> None:
+        self._store.rename_category(old, new)
+        self.libraryChanged.emit()
+
+    @Slot(str)
+    def removeCategory(self, name: str) -> None:
+        self._store.remove_category(name)
+        self.libraryChanged.emit()
+
+    @Slot(str, "QStringList")
+    def setCategories(self, sha: str, names: list[str]) -> None:
+        if self._store.has(sha):
+            self._store.set_categories(sha, list(names))
+            self.libraryChanged.emit()
 
     lastColorChanged = Signal()
     lastColor = Property(str, lambda self: self._last_color, notify=lastColorChanged)

@@ -10,7 +10,7 @@ DgDialog {
 
     readonly property var groups: [
         { name: "Files", keys: [
-            ["Ctrl+O", "Open a PDF"], ["Ctrl+W", "Close the PDF"], ["Ctrl+E", "Export to Markdown"],
+            ["Ctrl+O", "Open a PDF"], ["Ctrl+W  Ctrl+L", "Close, back to the library"], ["Ctrl+E", "Export to Markdown"],
             ["Ctrl+,", "Settings"], ["Ctrl+Q", "Quit"], ["F1  ?", "This list"]] },
         { name: "Reading", keys: [
             ["j k  ↓ ↑", "Scroll"], ["h l  ← →", "Scroll sideways"], ["Space  Shift+Space", "Screen down / up"],
@@ -27,7 +27,10 @@ DgDialog {
         { name: "Find and panels", keys: [
             ["/  Ctrl+F", "Search"], ["Enter  n", "Next match"], ["Shift+Enter  N", "Previous match"],
             ["Ctrl+\\  F9", "Toggle sidebar"], ["Ctrl+1 … 4", "Contents, Highlights, Bookmarks, Notes"],
-            ["Esc", "Back to the page"]] }
+            ["Esc", "Back to the page"]] },
+        { name: "Library", keys: [
+            ["/", "Search (also inside your marks)"], ["s", "Next sort order"], ["c", "Categories of a document"],
+            ["n", "New category"], ["← →", "Categories / documents"], ["F2  Del", "Rename / delete a category"]] }
     ]
 
     GridLayout {

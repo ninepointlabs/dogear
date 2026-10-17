@@ -8,10 +8,16 @@ DgDialog {
     id: dialog
     title: "Settings"
 
-    onOpened: { field.text = App.exportDirIsDefault ? "" : App.exportDir; field.forceActiveFocus() }
+    onOpened: {
+        field.text = App.exportDirIsDefault ? "" : App.exportDir
+        keepCopies.checked = App.keepCopies
+        copiesSize.text = "Copies use " + App.copiesSize() + " in " + App.libraryDir + "."
+        field.forceActiveFocus()
+    }
 
     function save() {
         App.setExportDir(field.text)
+        App.setKeepCopies(keepCopies.checked)
         close()
     }
 
@@ -42,6 +48,32 @@ DgDialog {
     DgText {
         Layout.fillWidth: true
         text: "Leave empty for the default. Annotations are stored in " + App.dataDir + " (your PDFs are never modified)."
+        muted: true
+        role: "caption"
+        wrapMode: Text.WordWrap
+        elide: Text.ElideNone
+    }
+
+    DgText {
+        Layout.topMargin: Theme.spaceLg
+        text: "Library"
+        font.weight: Font.DemiBold
+    }
+    DgCheckBox {
+        id: keepCopies
+        text: "Keep a copy of every PDF I mark up"
+    }
+    DgText {
+        Layout.fillWidth: true
+        text: "Your marks then always have their PDF, even if the original is moved, renamed or deleted."
+        secondary: true
+        role: "small"
+        wrapMode: Text.WordWrap
+        elide: Text.ElideNone
+    }
+    DgText {
+        id: copiesSize
+        Layout.fillWidth: true
         muted: true
         role: "caption"
         wrapMode: Text.WordWrap

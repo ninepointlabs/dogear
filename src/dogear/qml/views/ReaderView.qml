@@ -81,8 +81,10 @@ Item {
     Shortcut { sequences: ["Ctrl+2"]; onActivated: reader.showPanel(1) }
     Shortcut { sequences: ["Ctrl+3"]; onActivated: reader.showPanel(2) }
     Shortcut { sequences: ["Ctrl+4"]; onActivated: reader.showPanel(3) }
-    Shortcut { sequences: ["Ctrl+=", "Ctrl++", StandardKey.ZoomIn]; onActivated: if (!pages.resizeAnswer(1)) pages.zoomBy(1.15) }
-    Shortcut { sequences: ["Ctrl+-", StandardKey.ZoomOut]; onActivated: if (!pages.resizeAnswer(-1)) pages.zoomBy(1 / 1.15) }
+    // One entry per key combination: Qt fires nothing for a combination
+    // listed twice (e.g. "Ctrl+-" next to StandardKey.ZoomOut).
+    Shortcut { sequences: ["Ctrl+=", "Ctrl++"]; onActivated: if (!pages.resizeAnswer(1)) pages.zoomBy(1.15) }
+    Shortcut { sequence: "Ctrl+-"; onActivated: if (!pages.resizeAnswer(-1)) pages.zoomBy(1 / 1.15) }
     Shortcut { sequences: ["Ctrl+0"]; onActivated: pages.zoomFit() }
     Shortcut { sequences: ["Alt+Left"]; onActivated: pages.back() }
 

@@ -22,7 +22,7 @@ Window {
 
     onClosing: Doc.flush()
 
-    Shortcut { sequences: [StandardKey.Quit, "Ctrl+Q"]; onActivated: { Doc.close(); Qt.quit() } }
+    Shortcut { sequence: "Ctrl+Q"; onActivated: { Doc.close(); Qt.quit() } }
     Shortcut { sequences: [StandardKey.Open]; onActivated: openDialog.open() }
     Shortcut { sequences: ["Ctrl+W", "Ctrl+L"]; enabled: Doc.loaded; onActivated: Doc.close() }
     Shortcut { sequences: ["Ctrl+,"]; onActivated: settings.show(window.restoreFocus) }

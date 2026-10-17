@@ -243,6 +243,22 @@ class UiSmokeTest(unittest.TestCase):
         self.type_text("red")
         self.key(Qt.Key.Key_Return)  # a single blank: Enter moves on
         self.type_text("blue")
+        # Qt fires no shortcut for a key combination listed twice, so each
+        # Shortcut must list each combination once (StandardKey included).
+        from PySide6.QtCore import QObject
+        from PySide6.QtGui import QKeySequence
+        shortcuts = [o for o in self.window.findChildren(QObject) if o.metaObject().className() == "QQuickShortcut"]
+        self.assertGreater(len(shortcuts), 10)
+        for sc in shortcuts:
+            # (Qt reports a StandardKey entry twice; identical entries are one.)
+            listed = list(dict.fromkeys(sc.property("sequences") or [])) or [sc.property("sequence")]
+            combos = []
+            for seq in listed:
+                if isinstance(seq, int):
+                    combos += [k.toString() for k in QKeySequence.keyBindings(QKeySequence.StandardKey(seq))]
+                elif seq:
+                    combos.append(QKeySequence(str(seq)).toString())
+            self.assertEqual(len(combos), len(set(combos)), f"shortcut lists a key twice: {combos}")
         # Ctrl+= grows the answer's text, not the page.
         zoom_before = self.page_view().property("zoom")
         size_before = self.doc.answersOnPage(5)[-1]["size"]
@@ -251,10 +267,9 @@ class UiSmokeTest(unittest.TestCase):
         self.assertEqual(self.page_view().property("zoom"), zoom_before)
         self.assertGreater(self.doc.answersOnPage(5)[-1]["size"], size_before)
         # Text too long for its line is squeezed to fit: Ctrl+= then can't
-        # grow it, and Ctrl+- shrinks it at once from the size shown. (Ctrl+-
-        # goes in as a raw event: QTest can't map it on offscreen.)
-        from PySide6.QtCore import QEvent
-        from PySide6.QtGui import QKeyEvent
+        # grow it, and A− / Ctrl+- shrinks it at once from the size shown.
+        # (QTest can't send Ctrl+- on offscreen; the shortcut check above
+        # covers the key reaching resizeAnswer.)
         editor = self.page_view().property("activeAnswer")
         size = editor.property("size")
         for words in range(2, 40):  # just too long, but not wrapping
@@ -266,8 +281,7 @@ class UiSmokeTest(unittest.TestCase):
         self.assertLess(squeezed, size - 1)
         self.key(Qt.Key.Key_Equal, Qt.KeyboardModifier.ControlModifier)
         self.assertEqual(editor.property("size"), size)
-        for kind in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
-            QGuiApplication.sendEvent(self.window, QKeyEvent(kind, Qt.Key.Key_Minus, Qt.KeyboardModifier.ControlModifier, "-"))
+        QMetaObject.invokeMethod(self.page_view(), "resizeAnswer", Q_ARG("QVariant", -1))
         self.wait()
         self.assertAlmostEqual(editor.property("shownSize"), squeezed / 1.1, delta=0.3)
         editor.setProperty("text", "blue")

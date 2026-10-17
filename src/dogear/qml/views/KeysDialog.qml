@@ -46,7 +46,8 @@ DgDialog {
                         required property var modelData
                         spacing: Theme.spaceLg
                         DgText {
-                            Layout.preferredWidth: 11 * Theme.fontBody
+                            Layout.preferredWidth: 10 * Theme.fontBody
+                            Layout.alignment: Qt.AlignTop
                             text: modelData[0]
                             role: "small"
                             font.weight: Font.DemiBold
@@ -56,6 +57,8 @@ DgDialog {
                             text: modelData[1]
                             role: "small"
                             secondary: true
+                            wrapMode: Text.WordWrap
+                            elide: Text.ElideNone
                         }
                     }
                 }

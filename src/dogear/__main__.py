@@ -21,13 +21,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = _parse_args(sys.argv[1:] if argv is None else argv)
-    logging.basicConfig(
-        level=logging.DEBUG if args.debug else logging.INFO,
-        format="%(levelname)s %(name)s: %(message)s",
-    )
+def create(argv0: str = APP_ID):
+    """Build the application, controllers and QML engine.
 
+    Returns (app, engine, doc); engine is None if the QML failed to load.
+    Split out of main() so the UI smoke test can drive the real app.
+    """
     # Every control is our own template; never let a platform style leak in.
     os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
 
@@ -42,7 +41,7 @@ def main(argv: list[str] | None = None) -> int:
     from .store import AnnotationStore
     from .theme.theme import Theme
 
-    app = QGuiApplication(sys.argv[:1])
+    app = QGuiApplication.instance() or QGuiApplication([argv0])
     app.setApplicationName(APP_ID)
     app.setApplicationDisplayName(APP_NAME)
     app.setApplicationVersion(__version__)
@@ -71,6 +70,24 @@ def main(argv: list[str] | None = None) -> int:
     engine.addImageProvider(PROVIDER_ID, provider)
     engine.load(str(HERE / "qml" / "Main.qml"))
     if not engine.rootObjects():
+        return app, None, doc
+    # Keep Python wrappers alive as long as the engine.
+    engine._dogear_refs = (info, theme, store, provider, state, doc)
+
+    return app, engine, doc
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(sys.argv[1:] if argv is None else argv)
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format="%(levelname)s %(name)s: %(message)s",
+    )
+
+    from PySide6.QtCore import QTimer
+
+    app, engine, doc = create()
+    if engine is None:
         return 1
 
     app.aboutToQuit.connect(doc.close)

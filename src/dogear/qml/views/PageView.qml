@@ -10,6 +10,7 @@ import "../components"
 // Only pages near the viewport load an image and build overlays.
 FocusScope {
     id: view
+    objectName: "pageView"
 
     property real zoom: 1.0
     property bool fitWidth: true
@@ -25,6 +26,8 @@ FocusScope {
     property real maxW: 612
     readonly property real contentW: Math.max(flick.width, maxW * pxPerPt + 2 * margin + 2 * gutter)
     readonly property alias flick: flick
+    readonly property real scrollX: flick.contentX
+    readonly property real scrollY: flick.contentY
 
     property int currentPage: 0
     // {page, rects: [[x,y,w,h]...], text} in PDF points, or null.
@@ -275,10 +278,10 @@ FocusScope {
         if (alt && event.key === Qt.Key_Left) { view.back() }
         else if (ctrl && event.key === Qt.Key_C) { view.copySelection() }
         else if (ctrl || alt) { handled = false }
-        else if (t === "J") view.nextPage()
-        else if (t === "K") view.prevPage()
-        else if (t === "G") view.goToPage(view.tops.length - 1)
-        else if (t === "N") view.nextSearchHit(-1)
+        else if (shift && event.key === Qt.Key_J) view.nextPage()
+        else if (shift && event.key === Qt.Key_K) view.prevPage()
+        else if (shift && event.key === Qt.Key_G) view.goToPage(view.tops.length - 1)
+        else if (shift && event.key === Qt.Key_N) view.nextSearchHit(-1)
         else if (event.key === Qt.Key_J || event.key === Qt.Key_Down) view.scrollBy(step)
         else if (event.key === Qt.Key_K || event.key === Qt.Key_Up) view.scrollBy(-step)
         else if (event.key === Qt.Key_H || event.key === Qt.Key_Left) view.scrollXBy(-step)
@@ -286,15 +289,15 @@ FocusScope {
         else if (event.key === Qt.Key_Space) view.scrollBy((shift ? -1 : 1) * flick.height * 0.9)
         else if (event.key === Qt.Key_PageDown) view.scrollBy(flick.height * 0.9)
         else if (event.key === Qt.Key_PageUp) view.scrollBy(-flick.height * 0.9)
-        else if (event.key === Qt.Key_Home || t === "g") view.goToPage(0)
+        else if (event.key === Qt.Key_Home || event.key === Qt.Key_G) view.goToPage(0)
         else if (event.key === Qt.Key_End) view.goToPage(view.tops.length - 1)
         else if (t === "+" || t === "=") view.zoomBy(1.15)
         else if (t === "-") view.zoomBy(1 / 1.15)
         else if (t === "0") view.zoomFit()
-        else if (t === "n") view.nextSearchHit(1)
+        else if (event.key === Qt.Key_N) view.nextSearchHit(1)
         else if (t >= "1" && t <= "5" && view.selection) view.highlightSelection(Doc.colors[Number(t) - 1], false)
-        else if (t === "a" && view.selection) view.highlightSelection(App.lastColor, true)
-        else if (t === "b") view.addBookmarkHere()
+        else if (event.key === Qt.Key_A && view.selection) view.highlightSelection(App.lastColor, true)
+        else if (event.key === Qt.Key_B) view.addBookmarkHere()
         else if (t === "/") view.searchRequested()
         else if (event.key === Qt.Key_Backspace) view.back()
         else if (event.key === Qt.Key_Escape && view.selection) view.selection = null

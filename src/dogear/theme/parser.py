@@ -249,9 +249,11 @@ def resolve(theme_dir: Path | None) -> ThemeData:
     series = [ansi[k] for k in ANSI_KEYS] + [c for c in bright.values() if c]
 
     highlights = {}
-    for name, (key, classic) in HIGHLIGHT_HUES.items():
+    for marker, (key, classic) in HIGHLIGHT_HUES.items():
         own = parse_color(colors_raw.get(key)) or parse_color(colors_raw.get(f"bright_{key}"))
-        highlights[name] = own if own and own.saturation() >= 0.3 else parse_color(classic)
+        # Markers must stay bright on white paper: skip greys and dark hues.
+        bright_enough = own is not None and own.saturation() >= 0.3 and own.luminance() >= 0.2
+        highlights[marker] = own if bright_enough else parse_color(classic)
 
     return ThemeData(
         name=name,

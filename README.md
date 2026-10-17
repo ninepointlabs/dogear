@@ -9,7 +9,12 @@ general notes about the document. It
 remembers where you stopped reading in every file. When you're done, export everything
 to Markdown, for example straight into your Obsidian vault.
 
-- Opens PDFs from the file dialog, the command line, drag and drop, or the recent files list.
+- A library of every PDF you've opened: search (titles, folders, and the text of your
+  highlights, notes and answers), sort and file them under categories.
+- Keeps a private copy of each PDF you mark up, so your marks never lose their PDF.
+- Recognizes another copy of a book you've marked up (a re-download, a new edition)
+  and offers to bring your marks over.
+- Opens PDFs from the file dialog, the command line, drag and drop, or the library.
 - Remembers the page, scroll position and zoom for each file.
 - Highlights in five colors. Click a highlight to change its color, add or edit its note, copy it, or delete it.
 - Highlight notes show in the sidebar and as markers in the page margin. There are also general notes per document.
@@ -50,7 +55,7 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 | Keys | Action |
 | --- | --- |
 | `Ctrl+O` | Open a PDF |
-| `Ctrl+W` | Close the PDF (back to recent files) |
+| `Ctrl+W`, `Ctrl+L` | Close the PDF, back to the library |
 | `Ctrl+E` | Export to Markdown |
 | `Ctrl+,` | Settings (export folder) |
 | `Ctrl+Q` | Quit |
@@ -85,8 +90,11 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 | `Esc` | Close search or popup, back to the page |
 
 In the sidebar lists: `↑` `↓` to move, `Enter` to jump. In Highlights, `e` edits the note
-and `Del` deletes. In Bookmarks, `r`/`F2` renames and `Del` deletes. On the start screen,
-`Del` removes a file from the recent list.
+and `Del` deletes. In Bookmarks, `r`/`F2` renames and `Del` deletes.
+
+In the library: `/` searches, `s` changes the sort order, `c` sets a document's
+categories, `n` makes a new category, `←` `→` move between categories and documents, and
+in the category list `F2` renames and `Del` deletes a category.
 
 ## Answer lines
 
@@ -111,6 +119,36 @@ bars are ignored. Short blanks (down to about 14 pt, like `____ sentence` lists)
 when they have space on both sides and nothing right below them, which tells them apart
 from dashes and letters.
 
+## Library
+
+With no PDF open (or after `Ctrl+L`), Dogear shows its library: every PDF you've opened,
+with how many highlights, notes, answers and bookmarks it has and when you last read it.
+
+- **Search** matches titles, file names, folders and categories, and also the text of
+  your highlights, notes, answers and bookmark names ("found in your marks").
+- **Sort** by Recent, Title, Most marked or Added (`s` cycles).
+- **Categories** organize a long list. A document can be in several. Press `c` on a
+  document to tick categories or type a new one. Pick a category on the left to see
+  only its documents, or *Uncategorized* for the ones not filed yet. Renaming a category
+  onto an existing name merges the two. Deleting one leaves its documents in the library.
+  Categories are exported as Obsidian tags.
+
+**Your marks always have their PDF.** Dogear never changes your PDFs, and it keeps a
+private copy of every PDF you mark up in `~/.local/share/dogear/library/` (Settings →
+"Keep a copy of every PDF I mark up", on by default; Settings shows the disk space).
+Your files stay where they are, and the library opens the original when it can. If the
+original is moved, renamed or deleted, it opens the copy instead. Documents marked up
+before this existed get their copy a few seconds after Dogear starts.
+
+**Other copies of the same book.** Marks belong to the exact bytes of a file. A
+re-download or a new edition is a different file and would open blank. When a PDF with
+no marks looks like one you've marked up, Dogear asks whether to bring the marks over. It
+counts as the same book when it has the same PDF document ID, or when its title or file
+name matches apart from version numbers and dates (`…_2.1.1…_20210325` and
+`…_2.2.1…_20210930`) and the page counts are within about 5%. "Lecture 1" and "Lecture 2"
+don't match. "Not this one" stops it asking about that copy. `Esc` decides nothing and it
+asks again next time. If the editions' pages differ, some brought-over marks may sit off.
+
 ## Markdown export
 
 `Ctrl+E` writes `<pdf name>.md` into the export folder. The default folder is
@@ -126,7 +164,7 @@ exported: 2026-10-16T20:30:00-04:00
 highlights: 3
 bookmarks: 1
 answers: 2
-tags: [dogear]
+tags: [dogear, biology]
 ---
 
 # Biology 101
@@ -166,8 +204,9 @@ Annotations live in a central store, one JSON file per PDF:
 
 ```
 ~/.local/share/dogear/              ($XDG_DATA_HOME/dogear, or $DOGEAR_DATA_DIR)
-├── index.json                      recent files + path → hash cache
-└── annotations/<sha256>.json       one PDF's highlights, notes, bookmarks, position
+├── index.json                      recent files, categories, path → hash cache
+├── annotations/<sha256>.json       one PDF's highlights, notes, bookmarks, answers, position
+└── library/<sha256>.pdf            private copies of marked-up PDFs
 ~/.config/dogear/settings.json      export folder
 ```
 
@@ -223,7 +262,13 @@ Annotation file format (`"dogear": 1` is the schema version):
       "text": "red", "context": "3. Plants absorb ___ and ___ light.",
       "created": "…", "updated": "…"
     }
-  ]
+  ],
+  "categories": ["Biology"],
+  "added": "2026-10-16T20:30:00-04:00",
+  "opened": 1792245000.0,
+  "page_count": 204,
+  "pdf_id": "4216DE69CFB8A749BFB2482F35376307",
+  "declined": []
 }
 ```
 
@@ -232,6 +277,8 @@ Pages are 0-based in the file and 1-based everywhere you see them. Rectangles ar
 they don't depend on zoom. `view.offset` is how far down the top page you'd scrolled (0–1).
 For an answer, `x`/`y`/`w` are the left end, height and length of its line, and
 `pitch` and `lines` describe ruled lines below it (`pitch` 0 means a single line).
+`page_count`, `pdf_id` (the PDF's own document ID) and the title are what recognize
+other copies of the same book. `declined` lists copies you said not to take marks from.
 Colors are `yellow`, `green`, `blue`, `pink` and `purple`. On screen they use the Omarchy
 theme's matching colors when those are bright enough to read on paper, and classic
 highlighter colors otherwise.
@@ -260,7 +307,8 @@ src/dogear/
 ├── controllers.py   Doc and App objects exposed to QML
 ├── pdf.py           selection, word, outline, link and text line helpers
 ├── rules.py         finds answer lines in a rendered page (no Qt in the detector)
-├── store.py         annotation store (no Qt)
+├── store.py         annotation store, categories, library copies (no Qt)
+├── library.py       library rows, search, sort, finding other copies (no Qt)
 ├── export.py        Markdown export (no Qt)
 ├── config.py        XDG paths, settings
 ├── theme/           Omarchy theme follow
@@ -273,7 +321,7 @@ src/dogear/
 PYTHONPATH=src python3 -m unittest discover -s tests
 ```
 
-This runs the store, export, answer-line and theme tests, plus an offscreen end-to-end smoke test.
+This runs the store, library, export, answer-line and theme tests, plus offscreen end-to-end smoke tests.
 The smoke test drives the real QML app with mouse and keyboard input: it selects and
 highlights text, writes a note, recolors a highlight, adds a bookmark and a document
 note, types answers on a worksheet page (click, `Tab`, `Enter`), searches, exports,

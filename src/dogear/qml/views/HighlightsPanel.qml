@@ -35,7 +35,7 @@ FocusScope {
                     Layout.fillHeight: true
                     Layout.preferredWidth: 4
                     radius: 2
-                    color: Theme.highlightColor(row.modelData.color)
+                    color: Theme.highlights[row.modelData.color]
                 }
                 ColumnLayout {
                     Layout.fillWidth: true

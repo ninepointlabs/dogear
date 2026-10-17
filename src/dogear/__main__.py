@@ -37,7 +37,6 @@ def create(argv0: str = APP_ID):
 
     from . import config
     from .controllers import AppController, DocumentController
-    from .pdf import PROVIDER_ID, PageImageProvider
     from .store import AnnotationStore
     from .theme.theme import Theme
 
@@ -58,21 +57,19 @@ def create(argv0: str = APP_ID):
     info = AppInfo()
     theme = Theme()
     store = AnnotationStore(config.data_dir())
-    provider = PageImageProvider()
     state = AppController(store)
-    doc = DocumentController(store, provider, state)
+    doc = DocumentController(store, state)
     qmlRegisterSingletonInstance(AppInfo, "Dogear", 1, 0, "AppInfo", info)
     qmlRegisterSingletonInstance(Theme, "Dogear", 1, 0, "Theme", theme)
     qmlRegisterSingletonInstance(AppController, "Dogear", 1, 0, "App", state)
     qmlRegisterSingletonInstance(DocumentController, "Dogear", 1, 0, "Doc", doc)
 
     engine = QQmlApplicationEngine()
-    engine.addImageProvider(PROVIDER_ID, provider)
     engine.load(str(HERE / "qml" / "Main.qml"))
     if not engine.rootObjects():
         return app, None, doc
     # Keep Python wrappers alive as long as the engine.
-    engine._dogear_refs = (info, theme, store, provider, state, doc)
+    engine._dogear_refs = (info, theme, store, state, doc)
 
     return app, engine, doc
 

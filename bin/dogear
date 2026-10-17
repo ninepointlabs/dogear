@@ -1,0 +1,6 @@
+#!/bin/sh
+# Run Dogear from a source checkout (no install needed).
+# Uses the system Python, where Arch's `pyside6` package lives.
+here=$(dirname "$(readlink -f "$0")")
+export PYTHONPATH="$here/../src${PYTHONPATH:+:$PYTHONPATH}"
+exec /usr/bin/python3 -m dogear "$@"

@@ -1,73 +1,16 @@
-"""Qt PDF plumbing: page rendering for QML and the document's text geometry.
+"""Text geometry from Qt PDF: selection, words, outline and links.
 
-Rendering goes through a QQuickImageProvider with its own QPdfDocument so it
-can run on QML's image-loading thread without touching the document the UI
-thread uses for selection, search and links. Qt serialises pdfium access
-internally; the lock here only guards loading/closing against a render in
-flight.
+Page rendering is not done here: QML's PdfPageImage renders in C++ off the
+UI thread. Everything in this module runs on the UI thread only. Running
+Python on a render thread could deadlock: Qt's pdfium lock and Python's GIL
+would be taken in opposite orders by the two threads.
 """
 
 from __future__ import annotations
 
-import logging
-import threading
-
-from PySide6.QtCore import QModelIndex, QPointF, QRectF, QSize, Qt
-from PySide6.QtGui import QColor, QImage, QPainter
+from PySide6.QtCore import QModelIndex, QPointF, QRectF, Qt
 from PySide6.QtPdf import QPdfBookmarkModel, QPdfDocument, QPdfLinkModel
-from PySide6.QtQml import QQmlImageProviderBase
-from PySide6.QtQuick import QQuickImageProvider
 
-log = logging.getLogger(__name__)
-
-PROVIDER_ID = "dogear"
-MAX_RENDER_EDGE = 8192
-
-
-class PageImageProvider(QQuickImageProvider):
-    """Serves image://dogear/<generation>/<page>; the requested source size
-    picks the render resolution."""
-
-    def __init__(self):
-        super().__init__(
-            QQmlImageProviderBase.ImageType.Image,
-            QQmlImageProviderBase.Flag.ForceAsynchronousImageLoading,
-        )
-        self._lock = threading.Lock()
-        self._doc = QPdfDocument()
-
-    def load(self, path: str) -> None:
-        with self._lock:
-            self._doc.close()
-            self._doc.load(path)
-
-    def close(self) -> None:
-        with self._lock:
-            self._doc.close()
-
-    def requestImage(self, image_id: str, size: QSize, requested: QSize) -> QImage:  # noqa: N802 (Qt API)
-        try:
-            page = int(image_id.split("/")[1])
-        except (IndexError, ValueError):
-            return QImage()
-        with self._lock:
-            if not (0 <= page < self._doc.pageCount()):
-                return QImage()
-            pts = self._doc.pagePointSize(page)
-            if pts.width() <= 0 or pts.height() <= 0:
-                return QImage()
-            width = requested.width() if requested.width() > 0 else round(pts.width() * 2)
-            width = max(16, min(MAX_RENDER_EDGE, width))
-            height = max(16, min(MAX_RENDER_EDGE, round(width * pts.height() / pts.width())))
-            rendered = self._doc.render(page, QSize(width, height))
-        # Pages without a painted background come back transparent; readers
-        # expect paper.
-        image = QImage(rendered.size(), QImage.Format.Format_RGB32)
-        image.fill(QColor("white"))
-        painter = QPainter(image)
-        painter.drawImage(0, 0, rendered)
-        painter.end()
-        return image
 
 
 def rect_list(r: QRectF) -> list[float]:
@@ -88,19 +31,29 @@ def page_text_at(doc: QPdfDocument, page: int, x: float, y: float) -> dict:
     text = doc.getAllText(page)
     if not text.isValid():
         return {"text": "", "rects": []}
-    # pdfium has no word API exposed through Qt; approximate by growing a
-    # tiny selection sideways until it crosses whitespace.
-    sel = doc.getSelection(page, QPointF(x - 0.5, y), QPointF(x + 0.5, y))
-    if not sel.isValid() or not sel.text().strip():
+    # pdfium has no word API exposed through Qt: select a few points around
+    # the click to find a character index, then grow to whitespace.
+    sel = None
+    for half in (3.0, 6.0):
+        candidate = doc.getSelection(page, QPointF(x - half, y), QPointF(x + half, y))
+        if candidate.isValid() and candidate.text().strip():
+            sel = candidate
+            break
+    if sel is None:
         return {"text": "", "rects": []}
-    start, end = sel.startIndex(), sel.endIndex()
     full = text.text()
-    # Map back into the page text by index.
-    lo, hi = start, end
+    lo = hi = min(len(full), max(0, (sel.startIndex() + sel.endIndex()) // 2))
     while lo > 0 and not full[lo - 1].isspace():
         lo -= 1
     while hi < len(full) and not full[hi].isspace():
         hi += 1
+    # Leave surrounding punctuation out of the word.
+    while lo < hi and not full[lo].isalnum():
+        lo += 1
+    while hi > lo and not full[hi - 1].isalnum():
+        hi -= 1
+    if hi <= lo:
+        return {"text": "", "rects": []}
     word = doc.getSelectionAtIndex(page, lo, hi - lo)
     if not word.isValid():
         return {"text": "", "rects": []}

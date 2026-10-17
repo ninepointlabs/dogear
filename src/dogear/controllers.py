@@ -30,15 +30,13 @@ class DocumentController(QObject):
     message = Signal(str)  # transient notice for the toast
     opened = Signal()  # a document finished loading; the view restores its position
 
-    def __init__(self, store: AnnotationStore, provider: pdf.PageImageProvider, app: AppController, parent=None):
+    def __init__(self, store: AnnotationStore, app: AppController, parent=None):
         super().__init__(parent)
         self._store = store
-        self._provider = provider
         self._app = app
         self._pdf = QPdfDocument(self)
         self._ann: DocAnnotations | None = None
         self._path = ""
-        self._generation = 0
         self._revision = 0
         self._page_sizes: list[list[float]] = []
         self._outline: list[dict] = []
@@ -83,8 +81,6 @@ class DocumentController(QObject):
             self._fail(f"Could not read {path.name}: {exc}")
             return False
         self._path = str(path.resolve())
-        self._provider.load(self._path)
-        self._generation += 1
         self._page_sizes = []
         for i in range(self._pdf.pageCount()):
             s = self._pdf.pagePointSize(i)
@@ -114,7 +110,6 @@ class DocumentController(QObject):
             return
         self._persist()
         self.setSearch("")
-        self._provider.close()
         self._pdf.close()
         self._ann = None
         self._path = ""
@@ -150,6 +145,7 @@ class DocumentController(QObject):
     # -- document properties
     loaded = Property(bool, lambda self: self._ann is not None, notify=loadedChanged)
     path = Property(str, lambda self: self._path, notify=loadedChanged)
+    url = Property(QUrl, lambda self: QUrl.fromLocalFile(self._path) if self._path else QUrl(), notify=loadedChanged)
     fileName = Property(str, lambda self: Path(self._path).name if self._path else "", notify=loadedChanged)
     title = Property(
         str,
@@ -158,7 +154,6 @@ class DocumentController(QObject):
     )
     error = Property(str, lambda self: self._error, notify=loadedChanged)
     pageCount = Property(int, lambda self: len(self._page_sizes), notify=loadedChanged)
-    generation = Property(int, lambda self: self._generation, notify=loadedChanged)
     pageSizes = Property("QVariantList", lambda self: self._page_sizes, notify=loadedChanged)
     outline = Property("QVariantList", lambda self: self._outline, notify=loadedChanged)
     revision = Property(int, lambda self: self._revision, notify=annotationsChanged)

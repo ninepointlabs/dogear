@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Shapes
+import QtQuick.Pdf
 import Dogear
 import "../components"
 
@@ -15,7 +16,8 @@ Item {
     readonly property var size: pageView.pageSize(index)
     readonly property real s: pageView.pxPerPt
     readonly property Flickable flick: pageView.flick
-    readonly property bool near: y + height > flick.contentY - flick.height
+    // Before the first layout every page sits at y = 0; nothing is near yet.
+    readonly property bool near: pageView.ready && y + height > flick.contentY - flick.height
         && y < flick.contentY + 2 * flick.height
 
     width: size[0] * s
@@ -26,7 +28,6 @@ Item {
     // Overlays only exist while the page is near the viewport.
     readonly property var highlights: (Doc.revision, near ? Doc.highlightsOnPage(index) : [])
     readonly property var bookmarks: (Doc.revision, near ? Doc.bookmarksOnPage(index) : [])
-    readonly property var links: near ? Doc.linksOnPage(index) : []
     readonly property var hits: {
         const out = []
         if (!near) return out
@@ -52,7 +53,8 @@ Item {
         return ""
     }
     function linkAt(p) {
-        for (const l of links)
+        // Looked up on demand (and cached in Python): most pages are never clicked.
+        for (const l of Doc.linksOnPage(index))
             if (inRect(p, l.rect, 0)) return l
         return null
     }
@@ -66,14 +68,15 @@ Item {
         border.color: Theme.border
     }
 
-    Image {
+    PdfPageImage {
         id: image
         anchors.fill: parent
+        document: page.near ? page.pageView.pdf : null
+        currentFrame: page.index
         asynchronous: true
         retainWhileLoading: true
         smooth: true
         fillMode: Image.Stretch
-        source: page.near && Doc.loaded ? "image://dogear/" + Doc.generation + "/" + page.index : ""
         sourceSize.width: Math.round(page.size[0] * page.pageView.renderPxPerPt * Screen.devicePixelRatio)
         sourceSize.height: Math.round(page.size[1] * page.pageView.renderPxPerPt * Screen.devicePixelRatio)
     }
@@ -107,7 +110,7 @@ Item {
         Item {
             id: hl
             required property var modelData
-            readonly property color tone: Theme.highlightColor(modelData.color)
+            readonly property color tone: Theme.highlights[modelData.color]
             anchors.fill: parent
             Repeater {
                 model: hl.modelData.rects
@@ -228,7 +231,7 @@ Item {
             width: Math.round(page.pageView.gutter * 0.6)
             height: width
             radius: Theme.radius > 0 ? 3 : 0
-            color: Theme.highlightColor(modelData.color)
+            color: Theme.highlights[modelData.color]
             border.width: markerMouse.containsMouse ? 2 : 1
             border.color: Theme.fg
 

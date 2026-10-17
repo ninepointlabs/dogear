@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Window
 import QtQuick.Templates as T
+import QtQuick.Pdf
 import Dogear
 import "../components"
 
@@ -26,6 +27,10 @@ FocusScope {
     property real maxW: 612
     readonly property real contentW: Math.max(flick.width, maxW * pxPerPt + 2 * margin + 2 * gutter)
     readonly property alias flick: flick
+    // Rendering uses Qt's own PDF document (C++ only, rendered off the UI
+    // thread). Python's QPdfDocument handles text, search and outline, and
+    // only ever runs on the UI thread.
+    readonly property alias pdf: pdfDoc
     readonly property real scrollX: flick.contentX
     readonly property real scrollY: flick.contentY
 
@@ -305,6 +310,11 @@ FocusScope {
         event.accepted = handled
     }
 
+    PdfDocument {
+        id: pdfDoc
+        source: Doc.loaded ? Doc.url : ""
+    }
+
     Rectangle {
         anchors.fill: parent
         color: Theme.bgSunken
@@ -321,6 +331,14 @@ FocusScope {
         maximumFlickVelocity: 4000
         T.ScrollBar.vertical: DgScrollBar {}
         T.ScrollBar.horizontal: DgScrollBar {}
+
+        // Ctrl+wheel zooms. Handlers on the Flickable see the wheel before
+        // the Flickable scrolls with it.
+        WheelHandler {
+            target: null
+            acceptedModifiers: Qt.ControlModifier
+            onWheel: event => view.zoomBy(event.angleDelta.y > 0 ? 1.1 : 1 / 1.1)
+        }
 
         onContentYChanged: { view.updateCurrentPage(); if (view.ready) saveTimer.restart() }
         onContentXChanged: if (view.ready) saveTimer.restart()
@@ -377,11 +395,6 @@ FocusScope {
         }
     }
 
-    WheelHandler {
-        target: null
-        acceptedModifiers: Qt.ControlModifier
-        onWheel: event => view.zoomBy(event.angleDelta.y > 0 ? 1.1 : 1 / 1.1)
-    }
 
     DgText {
         anchors.centerIn: parent

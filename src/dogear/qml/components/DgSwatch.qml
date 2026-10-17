@@ -25,7 +25,7 @@ T.AbstractButton {
             width: parent.width - 2 * Theme.spaceSm
             height: width
             radius: width / 2
-            color: Theme.highlightColor(control.colorName)
+            color: Theme.highlights[control.colorName]
             border.width: control.current ? Theme.focusWidth : control.hovered ? 1 : 0
             border.color: Theme.fg
 

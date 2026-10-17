@@ -145,6 +145,10 @@ class Theme(QObject):
         c.setAlphaF(max(0.0, min(1.0, alpha)))
         return c
 
+    # Map of highlight color name -> QColor; a property (not only a slot) so
+    # QML bindings repaint when the theme changes.
+    highlights = Property("QVariantMap", lambda self: dict(self._highlights), notify=changed)
+
     @Slot(str, result=QColor)
     def highlightColor(self, name: str) -> QColor:
         """Opaque marker color for a highlight color name (yellow, green, ...)."""

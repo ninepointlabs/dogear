@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Dogear
+GenericName=PDF Reader
+Comment=Read, highlight and remember your PDFs.
+Exec=dogear %f
+Icon=dogear
+Terminal=false
+Categories=Office;Viewer;
+MimeType=application/pdf;
+Keywords=pdf;reader;highlight;annotate;notes;study;textbook;
+StartupWMClass=dogear
+StartupNotify=true

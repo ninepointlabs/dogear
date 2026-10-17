@@ -1,0 +1,47 @@
+# Maintainer: Nine Point Labs <tim@ninepointlabs.com>
+#
+# Package-ready layout, not yet published: there is no remote repository or
+# release tarball yet, so `source`/`sha256sums` must be filled in when Dogear
+# gets a public home (omarchy-pkgs is planned for later).
+pkgname=dogear
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="An Omarchy-native PDF reader for study: highlight, annotate, bookmark, export to Markdown"
+arch=('any')
+url="https://github.com/ninepointlabs/dogear"
+license=('MIT')
+depends=(
+  'python'
+  'pyside6'   # includes QtPdf and QtQuick
+  'hicolor-icon-theme'
+)
+makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
+checkdepends=('ghostscript')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "$pkgname-$pkgver"
+  python -m build --wheel --no-isolation
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  QT_QPA_PLATFORM=offscreen PYTHONPATH="$PWD/src" python -m unittest discover -s tests
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  python -m installer --destdir="$pkgdir" dist/*.whl
+
+  install -Dm644 packaging/dogear.desktop "$pkgdir/usr/share/applications/dogear.desktop"
+  local size
+  for size in 16 32 48 64 128 256 512; do
+    install -Dm644 "packaging/icons/hicolor/${size}x${size}/apps/dogear.png" \
+      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/dogear.png"
+  done
+  install -Dm644 packaging/icons/hicolor/scalable/apps/dogear.svg \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/dogear.svg"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

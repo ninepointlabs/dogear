@@ -49,7 +49,7 @@ class UiSmokeTest(unittest.TestCase):
         assert cls.engine is not None, "QML failed to load"
         cls.window = cls.engine.rootObjects()[0]
         cls.window.resize(1200, 900)
-        cls.app_state = cls.engine._dogear_refs[4]
+        cls.app_state = cls.engine._dogear_refs[3]
         cls.app_state.setExportDir(str(cls.export_dir))
 
     @classmethod

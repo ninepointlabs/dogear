@@ -1,8 +1,7 @@
 # Maintainer: Nine Point Labs <tim@ninepointlabs.com>
 #
-# Package-ready layout, not yet published: there is no remote repository or
-# release tarball yet, so `source`/`sha256sums` must be filled in when Dogear
-# gets a public home (omarchy-pkgs is planned for later).
+# Builds from the GitHub release tarball. The built package is attached to
+# each GitHub release (https://github.com/ninepointlabs/dogear/releases).
 pkgname=dogear
 pkgver=0.1.0
 pkgrel=1

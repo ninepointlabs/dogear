@@ -1,0 +1,3 @@
+# Not in release tarballs: the website and the tools that make its media.
+docs/ export-ignore
+tools/demo/ export-ignore

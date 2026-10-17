@@ -203,6 +203,75 @@ class Note:
 
 
 @dataclass
+class Answer:
+    """Text written on an answer line in the PDF.
+
+    Positions are PDF points from the page's top-left. `y` is the first
+    line the text sits on; with `pitch` > 0 the text continues on `lines`
+    evenly spaced lines below it, like ruled paper. `context` is the text
+    printed around the line (the question), kept for the export.
+    """
+
+    id: str
+    page: int
+    x: float
+    y: float
+    w: float
+    pitch: float = 0.0
+    lines: int = 1
+    size: float = 11.0
+    text: str = ""
+    context: str = ""
+    created: str = ""
+    updated: str = ""
+
+    def sort_key(self) -> tuple[int, float, float]:
+        return (self.page, self.y, self.x)
+
+    def bottom(self) -> float:
+        """The y of the last line the answer was given."""
+        return self.y + max(0, self.lines - 1) * self.pitch
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "page": self.page,
+            "x": round(self.x, 2),
+            "y": round(self.y, 2),
+            "w": round(self.w, 2),
+            "pitch": round(self.pitch, 2),
+            "lines": self.lines,
+            "size": round(self.size, 2),
+            "text": self.text,
+            "context": self.context,
+            "created": self.created,
+            "updated": self.updated,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: dict) -> Answer | None:
+        page = _int(raw.get("page"), -1)
+        w = _num(raw.get("w"))
+        if page < 0 or w <= 0:
+            return None
+        size = _num(raw.get("size"), 11.0)
+        return cls(
+            id=_str(raw.get("id")) or new_id(),
+            page=page,
+            x=max(0.0, _num(raw.get("x"))),
+            y=max(0.0, _num(raw.get("y"))),
+            w=w,
+            pitch=max(0.0, _num(raw.get("pitch"))),
+            lines=max(1, _int(raw.get("lines"), 1)),
+            size=size if 3.0 <= size <= 72.0 else 11.0,
+            text=_str(raw.get("text")),
+            context=_str(raw.get("context")),
+            created=_str(raw.get("created")),
+            updated=_str(raw.get("updated")),
+        )
+
+
+@dataclass
 class ViewState:
     page: int = 0
     offset: float = 0.0  # fraction of the page height scrolled past, 0..1
@@ -243,6 +312,7 @@ class DocAnnotations:
     highlights: list[Highlight] = field(default_factory=list)
     bookmarks: list[Bookmark] = field(default_factory=list)
     notes: list[Note] = field(default_factory=list)
+    answers: list[Answer] = field(default_factory=list)
     carried_from: str = ""
 
     # -- highlights
@@ -319,8 +389,39 @@ class DocAnnotations:
         self.notes = [n for n in self.notes if n.id != nid]
         return len(self.notes) != before
 
+    # -- answers written on the page
+    def add_answer(
+        self, page: int, x: float, y: float, w: float, *,
+        pitch: float = 0.0, lines: int = 1, size: float = 11.0, text: str = "", context: str = "",
+    ) -> Answer:
+        stamp = now_iso()
+        ans = Answer(new_id(), page, x, y, w, max(0.0, pitch), max(1, lines), size, text, context, stamp, stamp)
+        self.answers.append(ans)
+        self.answers.sort(key=Answer.sort_key)
+        return ans
+
+    def answer(self, aid: str) -> Answer | None:
+        return next((a for a in self.answers if a.id == aid), None)
+
+    def set_answer_text(self, aid: str, text: str) -> Answer:
+        ans = self.answer(aid)
+        if ans is None:
+            raise KeyError(aid)
+        if ans.text != text:
+            ans.text = text
+            ans.updated = now_iso()
+        return ans
+
+    def remove_answer(self, aid: str) -> bool:
+        before = len(self.answers)
+        self.answers = [a for a in self.answers if a.id != aid]
+        return len(self.answers) != before
+
+    def answers_on_page(self, page: int) -> list[Answer]:
+        return [a for a in self.answers if a.page == page]
+
     def is_empty(self) -> bool:
-        return not (self.highlights or self.bookmarks or self.notes)
+        return not (self.highlights or self.bookmarks or self.notes or self.answers)
 
     # -- serialization
     def to_dict(self) -> dict:
@@ -334,6 +435,8 @@ class DocAnnotations:
             "highlights": [h.to_dict() for h in self.highlights],
             "bookmarks": [b.to_dict() for b in self.bookmarks],
             "notes": [n.to_dict() for n in self.notes],
+            # Blank answers are only an open editor; they are not kept.
+            "answers": [a.to_dict() for a in self.answers if a.text.strip()],
         }
         if self.carried_from:
             data["carried_from"] = self.carried_from
@@ -354,10 +457,12 @@ class DocAnnotations:
             highlights=[h for h in (Highlight.from_dict(v) for v in items("highlights")) if h],
             bookmarks=[b for b in (Bookmark.from_dict(v) for v in items("bookmarks")) if b],
             notes=[Note.from_dict(v) for v in items("notes")],
+            answers=[a for a in (Answer.from_dict(v) for v in items("answers")) if a and a.text.strip()],
             carried_from=_str(raw.get("carried_from")),
         )
         doc.highlights.sort(key=Highlight.sort_key)
         doc.bookmarks.sort(key=lambda b: (b.page, b.y))
+        doc.answers.sort(key=Answer.sort_key)
         return doc
 
 

@@ -75,6 +75,43 @@ class TestDocAnnotations(unittest.TestCase):
         self.assertTrue(doc.remove_note(n.id))
         self.assertTrue(doc.is_empty())
 
+    def test_answers(self):
+        doc = DocAnnotations(sha256="x")
+        later = doc.add_answer(1, 90, 300, 400, pitch=24, lines=3, size=12, context="2. Explain")
+        first = doc.add_answer(1, 210, 120, 300, context="1. Name:")
+        other = doc.add_answer(0, 50, 500, 200)
+        self.assertEqual([a.id for a in doc.answers], [other.id, first.id, later.id])
+        self.assertEqual(later.bottom(), 348)
+        self.assertEqual(first.bottom(), 120)
+        doc.set_answer_text(first.id, "Photosynthesis")
+        self.assertEqual(doc.answer(first.id).text, "Photosynthesis")
+        self.assertEqual(len(doc.answers_on_page(1)), 2)
+        with self.assertRaises(KeyError):
+            doc.set_answer_text("missing", "x")
+        self.assertFalse(doc.is_empty())
+        self.assertTrue(doc.remove_answer(other.id))
+        self.assertFalse(doc.remove_answer(other.id))
+
+    def test_blank_answers_are_not_saved(self):
+        doc = DocAnnotations(sha256="x")
+        kept = doc.add_answer(0, 50, 100, 200, text="blue")
+        doc.add_answer(0, 50, 200, 200, text="  ")
+        data = doc.to_dict()
+        self.assertEqual([a["id"] for a in data["answers"]], [kept.id])
+        back = DocAnnotations.from_dict(data, "x")
+        self.assertEqual([(a.text, a.x, a.y, a.w) for a in back.answers], [("blue", 50, 100, 200)])
+
+    def test_answers_from_dict_tolerate_garbage(self):
+        doc = DocAnnotations.from_dict({"answers": [
+            {"page": 0, "x": 10, "y": 20, "w": 0, "text": "no width"},
+            {"page": -1, "x": 10, "y": 20, "w": 50, "text": "bad page"},
+            {"page": 2, "x": 10, "y": 20, "w": 50, "text": "ok", "size": 999, "lines": 0, "pitch": -3},
+            "junk",
+        ]}, "x")
+        self.assertEqual(len(doc.answers), 1)
+        a = doc.answers[0]
+        self.assertEqual((a.size, a.lines, a.pitch), (11.0, 1, 0.0))
+
     def test_round_trip(self):
         doc = DocAnnotations(sha256="abc", file_name="a.pdf", title="A")
         doc.view = ViewState(page=7, offset=0.25, zoom=1.5, fit_width=False, x=0.1)

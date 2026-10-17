@@ -2,7 +2,8 @@
 
 The output is meant for a notes vault such as Obsidian: YAML front matter,
 document notes first, then one section per page holding that page's
-bookmarks and highlights (quoted), each with its note underneath.
+bookmarks, highlights (quoted, each with its note underneath) and the
+answers written on its answer lines, in reading order.
 """
 
 from __future__ import annotations
@@ -25,6 +26,12 @@ def _yaml_str(value: str) -> str:
 def _quote(text: str) -> str:
     lines = text.strip().splitlines() or [""]
     return "\n".join(f"> {line}".rstrip() for line in lines)
+
+
+def _answer(text: str) -> str:
+    """'**A:** text', keeping the answer's own line breaks."""
+    lines = [line.rstrip() for line in text.strip().splitlines()]
+    return "**A:** " + "  \n".join(lines) + "  "
 
 
 def page_heading(page: int, label: str) -> str:
@@ -51,6 +58,7 @@ def render_markdown(
     title = doc.title or (Path(doc.file_name).stem if doc.file_name else "Untitled")
     stamp = (exported_at or datetime.now().astimezone()).isoformat(timespec="seconds")
     label = page_label or (lambda p: "")
+    answers = [a for a in doc.answers if a.text.strip()]
 
     out: list[str] = [
         "---",
@@ -63,6 +71,7 @@ def render_markdown(
         f"exported: {stamp}",
         f"highlights: {len(doc.highlights)}",
         f"bookmarks: {len(doc.bookmarks)}",
+        f"answers: {len(answers)}",
         "tags: [dogear]",
         "---",
         "",
@@ -79,22 +88,41 @@ def render_markdown(
             if text:
                 out += [text, ""]
 
-    pages = sorted({h.page for h in doc.highlights} | {b.page for b in doc.bookmarks})
+    pages = sorted({h.page for h in doc.highlights} | {b.page for b in doc.bookmarks} | {a.page for a in answers})
     for page in pages:
         out += [f"## {page_heading(page, label(page))}", ""]
         for bm in (b for b in doc.bookmarks if b.page == page):
             out.append(f"- **Bookmark:** {bm.name}")
         if any(b.page == page for b in doc.bookmarks):
             out.append("")
-        for hl in (h for h in doc.highlights if h.page == page):
-            out.append(_quote(hl.text or "(no text)"))
-            out.append(f"> — p. {page + 1} · {hl.color}")
+        # Highlights and answers interleaved top to bottom, as on the page.
+        items: list[tuple[tuple, str, object]] = [(h.sort_key(), "h", h) for h in doc.highlights if h.page == page]
+        items += [(a.sort_key(), "a", a) for a in answers if a.page == page]
+        items.sort(key=lambda item: item[0])
+        last_context = None
+        for _, kind, item in items:
+            if kind == "h":
+                if last_context is not None:
+                    out.append("")
+                last_context = None
+                out.append(_quote(item.text or "(no text)"))
+                out.append(f"> — p. {page + 1} · {item.color}")
+                out.append("")
+                if item.note.strip():
+                    out += [item.note.strip(), ""]
+                continue
+            # Blanks on one printed line share their question: show it once.
+            if item.context and item.context != last_context:
+                if last_context is not None:
+                    out.append("")
+                out.append(f"**Q:** {item.context}  ")
+            last_context = item.context
+            out.append(_answer(item.text))
+        if last_context is not None:
             out.append("")
-            if hl.note.strip():
-                out += [hl.note.strip(), ""]
 
     if not doc.notes and not pages:
-        out += ["*No highlights, notes or bookmarks yet.*", ""]
+        out += ["*No highlights, notes, bookmarks or answers yet.*", ""]
 
     return "\n".join(out).rstrip("\n") + "\n"
 

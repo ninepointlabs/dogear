@@ -69,10 +69,33 @@ class TestRender(unittest.TestCase):
         md = render_markdown(doc)
         self.assertIn("> line one\n> line two\n> — p. 1 · yellow", md)
 
+    def test_answers_in_reading_order_with_questions(self):
+        doc = DocAnnotations(sha256=SHA, file_name="w.pdf", title="Worksheet")
+        doc.add_highlight(0, [Rect(72, 300, 200, 12)], "Between the questions.", "yellow")
+        doc.add_answer(0, 162, 623 - 400, 107, text="red", context="3. Plants absorb ___ and ___ light.")
+        doc.add_answer(0, 300, 623 - 400, 107, text="blue", context="3. Plants absorb ___ and ___ light.")
+        doc.add_answer(0, 90, 532, 430, pitch=24, lines=3, text="Line one\nLine two", context="2. Explain it.")
+        doc.add_answer(0, 90, 700, 430, text="   ")  # blank: left out
+        md = render_markdown(doc, exported_at=FIXED)
+        self.assertIn("answers: 3", md.splitlines())
+        self.assertIn(
+            "**Q:** 3. Plants absorb ___ and ___ light.  \n**A:** red  \n**A:** blue  \n\n"
+            "> Between the questions.\n> — p. 1 · yellow\n\n"
+            "**Q:** 2. Explain it.  \n**A:** Line one  \nLine two  \n",
+            md,
+        )
+
+    def test_answer_without_question(self):
+        doc = DocAnnotations(sha256=SHA, file_name="w.pdf")
+        doc.add_answer(4, 90, 100, 300, text="just an answer")
+        md = render_markdown(doc, exported_at=FIXED)
+        self.assertIn("## Page 5\n\n**A:** just an answer", md)
+        self.assertNotIn("**Q:**", md)
+
     def test_empty_doc(self):
         md = render_markdown(DocAnnotations(sha256=SHA, file_name="x.pdf"))
         self.assertIn("# x", md)
-        self.assertIn("*No highlights, notes or bookmarks yet.*", md)
+        self.assertIn("*No highlights, notes, bookmarks or answers yet.*", md)
         self.assertTrue(md.endswith("\n") and not md.endswith("\n\n"))
 
     def test_title_quotes_escaped(self):

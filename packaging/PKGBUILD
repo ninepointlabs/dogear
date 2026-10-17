@@ -12,7 +12,8 @@ url="https://github.com/ninepointlabs/dogear"
 license=('MIT')
 depends=(
   'python'
-  'pyside6'   # includes QtPdf and QtQuick
+  'pyside6'         # QtQuick and the QtPdf bindings
+  'qt6-webengine'   # the Qt PDF library itself (libQt6Pdf)
   'hicolor-icon-theme'
 )
 makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')

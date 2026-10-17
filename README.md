@@ -30,17 +30,19 @@ to Markdown, for example straight into your Obsidian vault.
 ## Run it
 
 Dogear needs Python 3.12+ and PySide6 with QtPdf. On Arch/Omarchy that's the official
-`pyside6` package:
+`pyside6` package, plus `qt6-webengine`, which provides the Qt PDF library (`pyside6` lists
+it only as optional):
 
 ```sh
-sudo pacman -S --needed pyside6
+sudo pacman -S --needed pyside6 qt6-webengine
+git clone https://github.com/ninepointlabs/dogear.git
 ```
 
 Then run it from the source checkout:
 
 ```sh
-~/Projects/dogear/bin/dogear                  # start screen with recent files
-~/Projects/dogear/bin/dogear path/to/book.pdf # open a file
+dogear/bin/dogear                  # the library
+dogear/bin/dogear path/to/book.pdf # open a file
 ```
 
 Or the equivalent: `PYTHONPATH=src python3 -m dogear [file.pdf]`.
@@ -353,8 +355,8 @@ highlighter colors otherwise.
   color, font and spacing value to the live Omarchy theme. The theme code (parser and
   watcher for `~/.local/state/omarchy/current/theme`, fontconfig font and Hyprland rounding)
   comes from Nine Point Labs' Repokase.
-- **PDF:** Qt PDF (`QtPdf`, pdfium), which ships with Arch's `pyside6` package, so there's
-  no extra dependency. It covers everything Dogear needs: rendering, text selection
+- **PDF:** Qt PDF (`QtPdf`, pdfium). Arch's `pyside6` has the bindings; the library itself
+  is in `qt6-webengine`. It covers everything Dogear needs: rendering, text selection
   geometry, search with match rectangles, the outline (table of contents), page labels
   and links. QML's `PdfPageImage` renders pages in C++ off the UI thread. Python uses its
   own `QPdfDocument` for text, search and outline, and only on the UI thread. That's on

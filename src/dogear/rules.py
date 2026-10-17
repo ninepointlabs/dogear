@@ -23,7 +23,10 @@ DARK = 200  # gray level below which a pixel counts as ink
 _INK = bytes(1 if v < DARK else 0 for v in range(256))
 _TO_MARK = bytes(ord("#") if v < DARK else ord(".") for v in range(256))
 
-MIN_LENGTH_PT = 28.0  # shorter strokes are dashes, not answer lines
+MIN_LENGTH_PT = 14.0  # shorter strokes are hyphens and dashes, not answer lines
+SHORT_PT = 28.0  # below this a line needs clear space at both ends (not a dash)
+SIDE_GAP_PT = 1.5
+GROUP_MIN_PT = 120.0  # lines at least this long can form a ruled block
 MAX_THICKNESS_PT = 3.0  # thicker is a filled bar or a picture
 MIN_SPACE_PT = 7.0  # less room above means underlined text, not a blank
 MAX_SPACE_PT = 40.0  # stop measuring the blank above at this height
@@ -92,12 +95,24 @@ def find_rules(gray: bytes, width: int, height: int, stride: int, scale: float) 
         if below < height and _ink(rows[below][x0:x1]) > 0.25 * span:
             continue
 
-        # 4. A line with vertical strokes at both ends is the edge of a box
+        # 4. A short line is only a blank with space at both ends (an em
+        # dash looks the same but touches the letters beside it)...
+        if span < SHORT_PT * scale and not (_clear_beside(rows, x0, top, bottom, scale, -1)
+                                            and _clear_beside(rows, x1, top, bottom, scale, 1)):
+            continue
+        # ...and nothing right under it: the crossbar of an "H" or the top
+        # of a "7" has its stems below.
+        if span < SHORT_PT * scale and any(
+            _ink(rows[r][x0:x1]) > 1 for r in range(bottom + 1, min(height, bottom + 1 + round(2.5 * scale)))
+        ):
+            continue
+
+        # 5. A line with vertical strokes at both ends is the edge of a box
         # or a table, not something to write on.
         if _vertical_at(rows, x0, top, bottom, probe, scale) and _vertical_at(rows, x1 - probe, top, bottom, probe, scale):
             continue
 
-        # 5. Measure the blank room above, where the answer is written.
+        # 6. Measure the blank room above, where the answer is written.
         # Ignore a few stray pixels (descenders poking in, a table's
         # vertical borders at the ends).
         r = top - 1
@@ -115,6 +130,18 @@ def find_rules(gray: bytes, width: int, height: int, stride: int, scale: float) 
         })
     rules.sort(key=lambda d: (d["y"], d["x"]))
     return _merge_split(rules)
+
+
+def _clear_beside(rows: list[bytes], x: int, top: int, bottom: int, scale: float, side: int) -> bool:
+    """No ink just left (side -1) or right (side 1) of a line end, from
+    a little above the line down to it."""
+    gap = max(2, round(SIDE_GAP_PT * scale))
+    c0, c1 = (x - gap, x) if side < 0 else (x + 1, x + 1 + gap)
+    c0, c1 = max(0, c0), min(len(rows[0]) if rows else 0, c1)
+    if c1 <= c0:
+        return True
+    r0 = max(0, top - round(6.0 * scale))
+    return all(b"#" not in rows[r][c0:c1] for r in range(r0, bottom + 1))
 
 
 def _vertical_at(rows: list[bytes], x: int, top: int, bottom: int, probe: int, scale: float) -> bool:
@@ -164,7 +191,9 @@ def slot_from(rules: list[dict], index: int, size: float = 0.0) -> dict:
     first = rules[index]
     group = [first]
     pitch = 0.0
-    for rule in rules[index + 1:]:
+    # Short blanks stacked in a column (one per sentence) are separate
+    # answers; ruled lines for writing are wide.
+    for rule in rules[index + 1:] if first["w"] >= GROUP_MIN_PT else []:
         last = group[-1]
         d = rule["y"] - last["y"]
         if d < 1.0:

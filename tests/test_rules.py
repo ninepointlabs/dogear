@@ -48,9 +48,32 @@ class TestFindRules(unittest.TestCase):
         page.text(20, 60, 260)
         self.assertEqual(page.rules(), [])
 
-    def test_short_dash_is_not_a_line(self):
+    def test_hyphen_is_not_a_line(self):
         page = Page()
-        page.line(50, 100, 15)
+        page.line(50, 100, 8)
+        self.assertEqual(page.rules(), [])
+
+    def test_short_blank_before_a_sentence(self):
+        page = Page()
+        page.line(50, 100, 22)
+        page.text(80, 100, 150)
+        rules = page.rules()
+        self.assertEqual(len(rules), 1)
+        self.assertAlmostEqual(rules[0]["w"], 22, delta=1)
+
+    def test_letter_crossbars_are_not_lines(self):
+        # "H"-like shapes: a bar with stems going down from it.
+        page = Page()
+        page.fill(50, 92, 20, 0.8)
+        for x in (50, 58, 69):
+            page.fill(x, 92, 1, 8)
+        self.assertEqual(page.rules(), [])
+
+    def test_em_dash_between_words_is_not_a_line(self):
+        page = Page()
+        page.text(20, 100, 60)
+        page.line(80.5, 96, 16)  # touches the words on both sides
+        page.text(97, 100, 60)
         self.assertEqual(page.rules(), [])
 
     def test_underlined_text_is_not_a_blank(self):
@@ -121,6 +144,11 @@ class TestSlots(unittest.TestCase):
         rules = self.rules((200, 100, 250, 20), (90, 118, 360, 15), (90, 136, 120, 15), (260, 136, 190, 15))
         self.assertEqual(slot_from(rules, 0)["lines"], 1)
         self.assertEqual(slot_from(rules, 1)["lines"], 1)
+
+    def test_stacked_short_blanks_stay_separate(self):
+        # "___ sentence" one per line, evenly spaced: answer each on its own.
+        rules = self.rules((100, 100, 24, 20), (100, 130, 24, 20), (100, 160, 24, 20))
+        self.assertEqual(slot_from(rules, 0)["lines"], 1)
 
     def test_single_line_size_from_space(self):
         slot = slot_from(self.rules((50, 100, 200, 14)), 0)

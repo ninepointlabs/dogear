@@ -23,6 +23,25 @@ def _ps_string(text: str) -> str:
     return "(" + text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)") + ")"
 
 
+def _rule(x1: float, x2: float, y: float) -> str:
+    return f"newpath {x1} {y} moveto {x2} {y} lineto 0.8 setlinewidth stroke"
+
+
+# The last page ends with review questions that have answer lines: a blank
+# after a label, three ruled lines under a question, and underscores.
+WORKSHEET = [
+    "/Helvetica-Bold findfont 14 scalefont setfont 72 370 moveto (Review questions) show",
+    "/Helvetica findfont 12 scalefont setfont",
+    "72 330 moveto (1. Name of the process:) show",
+    _rule(210, 520, 328),
+    "72 290 moveto (2. Explain the Calvin cycle in your own words.) show",
+    _rule(90, 520, 260),
+    _rule(90, 520, 236),
+    _rule(90, 520, 212),
+    "72 170 moveto (3. Plants absorb ________________ and ________________ light.) show",
+]
+
+
 def build_ps(pages: int) -> str:
     out = ["%!PS-Adobe-3.0", "/Helvetica findfont 12 scalefont setfont"]
     chapters = []
@@ -31,9 +50,12 @@ def build_ps(pages: int) -> str:
         out.append(f"/Helvetica-Bold findfont 20 scalefont setfont 72 720 moveto {_ps_string(f'Chapter {p}: Topic {p}')} show")
         out.append("/Helvetica findfont 12 scalefont setfont")
         y = 690
-        for line in range(30):
+        last = p == pages and pages > 1
+        for line in range(14 if last else 30):
             out.append(f"72 {y} moveto {_ps_string(f'{p}.{line + 1} ' + LOREM[(line * 7) % 60:(line * 7) % 60 + 70])} show")
             y -= 20
+        if last:
+            out += WORKSHEET
         out.append(f"300 40 moveto {_ps_string(str(p))} show")
         out.append(f"[ /Title {_ps_string(f'Chapter {p}: Topic {p}')} /Page {p} /OUT pdfmark")
         out.append("showpage")

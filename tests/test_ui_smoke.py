@@ -203,6 +203,45 @@ class UiSmokeTest(unittest.TestCase):
         self.key(Qt.Key.Key_Escape)
         self.assertEqual(self.doc.searchTerm, "")
 
+        # Answers: the last page is a worksheet with answer lines. Clicking
+        # just above a line starts typing there; Tab moves to the next line.
+        from PySide6.QtCore import QMetaObject, Q_ARG
+        QMetaObject.invokeMethod(self.page_view(), "goToPage", Q_ARG("QVariant", 5), Q_ARG("QVariant", 400), Q_ARG("QVariant", False))
+        self.wait(400)
+        QTest.mouseClick(self.window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         self.pt_to_window(5, 300, 457))
+        self.wait()
+        self.type_text("Photosynthesis?")  # "?" must type, not open the shortcuts
+        self.key(Qt.Key.Key_Tab)
+        self.type_text("Carbon is fixed")
+        self.key(Qt.Key.Key_Return)  # ruled lines: Enter is a new line
+        self.type_text("into sugar")
+        self.key(Qt.Key.Key_Tab)
+        self.type_text("red")
+        self.key(Qt.Key.Key_Return)  # a single blank: Enter moves on
+        self.type_text("blue")
+        self.key(Qt.Key.Key_Escape)
+        answers = [a for p in range(6) for a in self.doc.answersOnPage(p)]
+        self.assertEqual([a["text"] for a in answers], ["Photosynthesis?", "Carbon is fixed\ninto sugar", "red", "blue"])
+        self.assertEqual(answers[0]["context"], "1. Name of the process:")
+        self.assertEqual(answers[1]["lines"], 3)
+        self.assertEqual(answers[2]["context"], "3. Plants absorb ___ and ___ light.")
+        # Clicking an empty spot that is not an answer line starts nothing;
+        # clicking a line and leaving it blank leaves nothing behind.
+        QTest.mouseClick(self.window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         self.pt_to_window(5, 300, 700))
+        self.wait()
+        self.assertEqual(sum(len(self.doc.answersOnPage(p)) for p in range(6)), 4)
+        # Clicking an answer edits it: select all and delete removes it.
+        QTest.mouseClick(self.window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         self.pt_to_window(5, 330, 619))
+        self.wait()
+        self.key(Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+        self.key(Qt.Key.Key_Delete)
+        self.key(Qt.Key.Key_Escape)
+        self.wait(100)
+        self.assertEqual([a["text"] for a in self.doc.answersOnPage(5)], ["Photosynthesis?", "Carbon is fixed\ninto sugar", "red"])
+
         # Go to page 5 and zoom in; this is the position to restore.
         self.page_view().forceActiveFocus()
         self.page_view().setProperty("fitWidth", False)
@@ -210,7 +249,6 @@ class UiSmokeTest(unittest.TestCase):
         zoom = self.page_view().property("zoom")
         self.assertFalse(self.page_view().property("fitWidth"))
         self.page_view().metaObject()  # keep the wrapper alive
-        from PySide6.QtCore import QMetaObject, Q_ARG
         QMetaObject.invokeMethod(self.page_view(), "goToPage", Q_ARG("QVariant", 4), Q_ARG("QVariant", 0), Q_ARG("QVariant", False))
         self.wait(500)
         self.assertEqual(self.page_view().property("currentPage"), 4)
@@ -223,6 +261,8 @@ class UiSmokeTest(unittest.TestCase):
         self.assertIn("on the exam", md)
         self.assertIn("- **Bookmark:** Chapter 2: Topic 2", md)
         self.assertIn("Read chapter 3 before Monday", md)
+        self.assertIn("**Q:** 1. Name of the process:  \n**A:** Photosynthesis?", md)
+        self.assertIn("**A:** Carbon is fixed  \ninto sugar", md)
 
         if os.environ.get("DOGEAR_SMOKE_SHOT"):
             self.window.grabWindow().save(os.environ["DOGEAR_SMOKE_SHOT"])
@@ -236,6 +276,7 @@ class UiSmokeTest(unittest.TestCase):
         self.assertEqual(len(self.doc.highlights), 2)
         self.assertEqual(len(self.doc.bookmarks), 1)
         self.assertEqual(len(self.doc.notes), 1)
+        self.assertEqual(len(self.doc.answersOnPage(5)), 3)
         self.assertEqual(self.page_view().property("currentPage"), 4)
         self.assertAlmostEqual(self.page_view().property("zoom"), zoom, places=3)
 

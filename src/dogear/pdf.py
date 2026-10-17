@@ -8,6 +8,8 @@ would be taken in opposite orders by the two threads.
 
 from __future__ import annotations
 
+import re
+
 from PySide6.QtCore import QModelIndex, QPointF, QRectF, Qt
 from PySide6.QtPdf import QPdfBookmarkModel, QPdfDocument, QPdfLinkModel
 
@@ -112,4 +114,22 @@ def links(doc: QPdfDocument, page: int) -> list[dict]:
             "page": int(target),
             "y": float(loc.y()) if isinstance(loc, QPointF) else 0.0,
         })
+    return out
+
+
+_LINE = re.compile(r"[^\r\n]+")
+
+
+def text_lines(doc: QPdfDocument, page: int) -> list[dict]:
+    """The page's text lines in reading order: {"text", "rect"} in points."""
+    text = doc.getAllText(page)
+    if not text.isValid():
+        return []
+    out = []
+    for m in _LINE.finditer(text.text()):
+        if not m.group().strip():
+            continue
+        sel = doc.getSelectionAtIndex(page, m.start(), m.end() - m.start())
+        if sel.isValid():
+            out.append({"text": m.group().strip(), "rect": rect_list(sel.boundingRectangle())})
     return out

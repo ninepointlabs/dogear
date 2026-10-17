@@ -6,8 +6,9 @@ import Dogear
 import "../components"
 
 // One page: rendered image, highlight/search/selection overlays, margin
-// markers for highlight notes, a dog-ear when bookmarked, and mouse
-// handling for text selection, highlight clicks and internal links.
+// markers for highlight notes, a dog-ear when bookmarked, answers typed on
+// the page's answer lines, and mouse handling for text selection,
+// highlight clicks, internal links and starting an answer.
 Item {
     id: page
 
@@ -28,6 +29,9 @@ Item {
     // Overlays only exist while the page is near the viewport.
     readonly property var highlights: (Doc.revision, near ? Doc.highlightsOnPage(index) : [])
     readonly property var bookmarks: (Doc.revision, near ? Doc.bookmarksOnPage(index) : [])
+    readonly property var answers: (Doc.revision, near ? Doc.answersOnPage(index) : [])
+    // The empty answer line under the mouse, for the hover hint.
+    property var blank: null
     readonly property var hits: {
         const out = []
         if (!near) return out
@@ -54,6 +58,18 @@ Item {
             for (const r of highlights[i].rects)
                 if (inRect(p, r, 1)) return highlights[i].id
         return ""
+    }
+    // Give keyboard focus to answer `aid` if it is on this page.
+    function focusAnswer(aid) {
+        for (let i = 0; i < answerRepeater.count; i++) {
+            const item = answerRepeater.itemAt(i)
+            if (item && item.modelData.id === aid) {
+                item.forceActiveFocus(Qt.OtherFocusReason)
+                item.cursorPosition = item.length
+                return true
+            }
+        }
+        return false
     }
     function linkAt(p) {
         // Looked up on demand (and cached in Python): most pages are never clicked.
@@ -171,9 +187,10 @@ Item {
         property var start: null
         property bool dragging: false
 
-        onExited: page.pageView.hoverHighlight(null)
+        onExited: { page.pageView.hoverHighlight(null); page.blank = null }
         onPressed: m => {
             page.pageView.hideNoteTip()
+            page.blank = null
             page.pageView.forceActiveFocus(Qt.MouseFocusReason)
             start = page.toPt(m.x, m.y)
             dragging = false
@@ -182,7 +199,10 @@ Item {
             const p = page.toPt(m.x, m.y)
             if (!pressed) {
                 const hid = page.highlightAt(p)
-                cursorShape = hid || page.linkAt(p) ? Qt.PointingHandCursor : Qt.IBeamCursor
+                const link = !hid && page.linkAt(p)
+                cursorShape = hid || link ? Qt.PointingHandCursor : Qt.IBeamCursor
+                const b = hid || link ? {} : Doc.blankAt(page.index, p.x, p.y)
+                page.blank = b.w ? b : null
                 const v = mapToItem(page.pageView, m.x, m.y)
                 page.pageView.hoverHighlight(page.highlightById(hid), v.x, v.y)
                 return
@@ -219,11 +239,129 @@ Item {
                 return
             }
             page.pageView.selection = null
+            // A click on an answer line starts typing there.
+            const aid = Doc.answerAt(page.index, p.x, p.y)
+            if (aid) page.pageView.editAnswer(page.index, aid)
         }
         onDoubleClicked: m => {
             const p = page.toPt(m.x, m.y)
             const w = Doc.wordAt(page.index, p.x, p.y)
             if (w.text && w.rects.length) page.pageView.selection = { page: page.index, rects: w.rects, text: w.text }
+        }
+    }
+
+    // Hover hint: the writing area of an empty answer line.
+    Rectangle {
+        readonly property var b: page.blank
+        visible: b !== null && !page.pageView.selecting
+        x: b ? b.x * page.s : 0
+        y: b ? (b.y - b.size * 1.6) * page.s : 0
+        width: b ? b.w * page.s : 0
+        height: b ? (b.size * 1.6 + (b.lines - 1) * b.pitch) * page.s : 0
+        color: Theme.tint(Theme.accent, 0.12)
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 2
+            color: Theme.tint(Theme.accent, 0.6)
+        }
+    }
+
+    // Answers typed on answer lines, in pen-blue ink (pages are always white).
+    Repeater {
+        id: answerRepeater
+        model: page.answers
+        TextEdit {
+            id: ans
+            required property var modelData
+            readonly property bool ruled: modelData.lines > 1 && modelData.pitch > 0
+            readonly property real basePx: modelData.size * page.s
+            // A single line shrinks its text to fit before it wraps.
+            readonly property real fitPx: ruled ? basePx
+                : Math.max(basePx * 0.6, Math.min(basePx, basePx * width * 0.97 / Math.max(1, natural.advanceWidth)))
+            readonly property real lift: Math.max(1.5, modelData.size * 0.25) * page.s
+
+            // The first baseline sits just above the first line. Qt puts the
+            // text of a fixed-height line at its bottom, descent included.
+            readonly property real firstBaseline: ruled ? pitchPx - metrics.descent : baselineOffset
+            x: modelData.x * page.s
+            y: modelData.y * page.s - lift - firstBaseline
+            width: modelData.w * page.s
+            z: activeFocus ? 2 : 1
+            text: modelData.text
+            color: "#1d3f94"
+            selectionColor: Theme.tint(Theme.accent, 0.35)
+            selectedTextColor: "#1d3f94"
+            // Proportional, like handwriting on paper (the theme font is mono).
+            font.family: "sans-serif"
+            font.pixelSize: Math.max(1, fitPx)
+            wrapMode: TextEdit.WrapAtWordBoundaryOrAnywhere
+            // Ruled answers put one line of text on each printed line.
+            readonly property real pitchPx: ruled ? modelData.pitch * page.s : 0
+            function applyPitch() { if (ruled) Doc.setLinePitch(textDocument, pitchPx) }
+            onPitchPxChanged: applyPitch()
+            onLineCountChanged: applyPitch()
+            selectByMouse: true
+            persistentSelection: false
+            cursorVisible: activeFocus
+
+            FontMetrics {
+                id: metrics
+                font: ans.font
+            }
+            TextMetrics {
+                id: natural
+                font.family: ans.font.family
+                font.pixelSize: ans.basePx
+                text: ans.text
+            }
+
+            // While typing, tint the whole writing area.
+            Rectangle {
+                z: -1
+                visible: ans.activeFocus
+                x: -2
+                y: ans.firstBaseline + ans.lift - ans.modelData.size * 1.6 * page.s
+                width: ans.width + 4
+                height: Math.max(ans.modelData.size * 1.6 * page.s + (ans.modelData.lines - 1) * ans.modelData.pitch * page.s,
+                                 ans.height - y) + 3
+                color: Theme.tint(Theme.accent, 0.10)
+                border.width: 1
+                border.color: Theme.tint(Theme.accent, 0.5)
+            }
+
+            onTextChanged: Doc.setAnswerText(modelData.id, text)
+            onActiveFocusChanged: {
+                if (activeFocus) {
+                    page.pageView.hideNoteTip()
+                    page.blank = null
+                    return
+                }
+                const aid = modelData.id
+                Qt.callLater(() => Doc.finishAnswer(aid))
+            }
+            Keys.onPressed: event => {
+                const aid = modelData.id
+                const ctrl = event.modifiers & Qt.ControlModifier
+                const shift = event.modifiers & Qt.ShiftModifier
+                const enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
+                if (event.key === Qt.Key_Escape || (enter && ctrl)) {
+                    page.pageView.forceActiveFocus()
+                } else if (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab) {
+                    const step = event.key === Qt.Key_Backtab || shift ? -1 : 1
+                    // Later: moving on rebuilds this editor.
+                    Qt.callLater(() => page.pageView.moveAnswer(aid, step))
+                } else if (enter && !shift && !ans.ruled) {
+                    Qt.callLater(() => page.pageView.moveAnswer(aid, 1))
+                } else {
+                    return
+                }
+                event.accepted = true
+            }
+            Component.onCompleted: {
+                applyPitch()
+                if (page.pageView.focusAnswer === modelData.id) page.pageView.applyAnswerFocus()
+            }
         }
     }
 
@@ -259,7 +397,7 @@ Item {
                     const v = mapToItem(page.pageView, width / 2, height / 2)
                     page.pageView.hoverHighlight(parent.modelData, v.x, v.y)
                 }
-                onExited: page.pageView.hoverHighlight(null)
+                onExited: { page.pageView.hoverHighlight(null); page.blank = null }
                 onClicked: page.pageView.openHighlight(parent.modelData.id, true)
             }
         }

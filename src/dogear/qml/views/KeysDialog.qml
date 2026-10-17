@@ -20,6 +20,9 @@ DgDialog {
             ["drag", "Select text (double-click: word)"], ["1–5", "Highlight selection in a color"],
             ["a", "Highlight and add a note"], ["Ctrl+C", "Copy selection"], ["click highlight", "Color, note, delete"], ["hover highlight", "Show its note"],
             ["b  Ctrl+D", "Bookmark this page"], ["Ctrl+N", "New document note"]] },
+        { name: "Answer lines", keys: [
+            ["click a line  i", "Type on it (i: first line in view)"], ["Tab  Shift+Tab", "Next / previous line"],
+            ["Enter", "Next line (ruled lines: new line)"], ["Esc", "Done typing"]] },
         { name: "Find and panels", keys: [
             ["/  Ctrl+F", "Search"], ["Enter  n", "Next match"], ["Shift+Enter  N", "Previous match"],
             ["Ctrl+\\  F9", "Toggle sidebar"], ["Ctrl+1 … 4", "Contents, Highlights, Bookmarks, Notes"],

@@ -7,12 +7,13 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Property, QModelIndex, QObject, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QTextBlockFormat, QTextCursor
 from PySide6.QtPdf import QPdfDocument, QPdfSearchModel
+from PySide6.QtQuick import QQuickTextDocument
 
-from . import config, pdf
+from . import config, pdf, rules
 from .export import export_markdown
-from .store import HIGHLIGHT_COLORS, AnnotationStore, DocAnnotations, Rect, ViewState, clean_pdf_text
+from .store import HIGHLIGHT_COLORS, AnnotationStore, Answer, DocAnnotations, Rect, ViewState, clean_pdf_text
 
 log = logging.getLogger(__name__)
 
@@ -41,6 +42,8 @@ class DocumentController(QObject):
         self._page_sizes: list[list[float]] = []
         self._outline: list[dict] = []
         self._links: dict[int, list[dict]] = {}
+        self._rules: dict[int, list[dict]] = {}
+        self._lines: dict[int, list[dict]] = {}
         self._error = ""
 
         self._search = QPdfSearchModel(self)
@@ -116,6 +119,8 @@ class DocumentController(QObject):
         self._page_sizes = []
         self._outline = []
         self._links = {}
+        self._rules = {}
+        self._lines = {}
         self._revision += 1
         self.loadedChanged.emit()
         self.annotationsChanged.emit()
@@ -321,6 +326,181 @@ class DocumentController(QObject):
     @Slot(str)
     def removeNote(self, nid: str) -> None:
         if self._ann and self._ann.remove_note(nid):
+            self._changed()
+
+    # -- answers written on answer lines
+    def _page_ok(self, page: int) -> bool:
+        return self._ann is not None and 0 <= page < len(self._page_sizes)
+
+    def _rules_on(self, page: int) -> list[dict]:
+        if page not in self._rules:
+            self._rules[page] = rules.page_rules(self._pdf, page)
+        return self._rules[page]
+
+    def _covering(self, page: int, rule: dict) -> Answer | None:
+        """The answer already written on this line, if any."""
+        for a in self._ann.answers_on_page(page):
+            if abs(rule["x"] - a.x) < 4.0 and a.y - 0.5 <= rule["y"] <= a.bottom() + 0.5:
+                return a
+        return None
+
+    def _answer_hit(self, page: int, x: float, y: float) -> Answer | None:
+        for a in self._ann.answers_on_page(page):
+            if a.x - 2 <= x <= a.x + a.w + 2 and a.y - max(a.size * 1.8, 12.0) <= y <= a.bottom() + 4.0:
+                return a
+        return None
+
+    def _group_start(self, page: int, index: int) -> int:
+        """First line of the ruled block that line `index` belongs to."""
+        found = self._rules_on(page)
+        start = index
+        for j in range(index - 1, -1, -1):
+            slot = rules.slot_from(found, j)
+            if slot["lines"] < 2 or slot["y"] + (slot["lines"] - 1) * slot["pitch"] < found[index]["y"] - 0.5:
+                break
+            start = j
+        return start
+
+    def _answer_on_rule(self, page: int, index: int) -> str:
+        """The answer on line `index`, starting a new one if it is blank."""
+        found = self._rules_on(page)
+        existing = self._covering(page, found[index])
+        # Only one answer is open at a time: blank ones left behind go.
+        blank = [a.id for a in self._ann.answers if not a.text.strip() and a is not existing]
+        for aid in blank:
+            self._ann.remove_answer(aid)
+        if existing:
+            if blank:
+                self._changed()
+            return existing.id
+        if page not in self._lines:
+            self._lines[page] = pdf.text_lines(self._pdf, page)
+        # Write in the same size as the page's own text.
+        slot = rules.slot_from(found, index, rules.text_size(self._lines[page]))
+        ans = self._ann.add_answer(
+            page, slot["x"], slot["y"], slot["w"], pitch=slot["pitch"], lines=slot["lines"],
+            size=slot["size"], context=rules.context_for(self._lines[page], slot["x"], slot["y"]),
+        )
+        self._changed()
+        return ans.id
+
+    @Slot(int, result="QVariantList")
+    def answersOnPage(self, page: int) -> list[dict]:
+        if self._ann is None:
+            return []
+        return [a.to_dict() for a in self._ann.answers_on_page(page)]
+
+    @Slot(int, float, float, result="QVariantMap")
+    def blankAt(self, page: int, x: float, y: float) -> dict:
+        """The writing area under the mouse: an empty answer line, for the
+        hover hint. Empty when there is none or it already has an answer."""
+        if not self._page_ok(page) or self._answer_hit(page, x, y):
+            return {}
+        found = self._rules_on(page)
+        index = rules.rule_at(found, x, y)
+        if index < 0 or self._covering(page, found[index]):
+            return {}
+        return rules.slot_from(found, index)
+
+    @Slot(int, float, float, result=str)
+    def answerAt(self, page: int, x: float, y: float) -> str:
+        """The answer at a clicked point, starting one when an empty answer
+        line was clicked. Empty when the point is not on an answer line."""
+        if not self._page_ok(page):
+            return ""
+        hit = self._answer_hit(page, x, y)
+        if hit:
+            return hit.id
+        index = rules.rule_at(self._rules_on(page), x, y)
+        return self._answer_on_rule(page, index) if index >= 0 else ""
+
+    @Slot(str, int, result="QVariantMap")
+    def adjacentAnswer(self, aid: str, step: int) -> dict:
+        """The next (step 1) or previous (step -1) answer line after answer
+        `aid`, on this page or the next few. Starts an answer there if the
+        line is blank. Returns {"page", "id"}, or {} at the end."""
+        cur = self._ann.answer(aid) if self._ann else None
+        if cur is None:
+            return {}
+        last = len(self._page_sizes) - 1
+        for page in range(cur.page, min(last, cur.page + 5) + 1) if step > 0 else range(cur.page, max(0, cur.page - 5) - 1, -1):
+            found = self._rules_on(page)
+            order = list(range(len(found)))
+            if page == cur.page:
+                if step > 0:
+                    order = [i for i in order if found[i]["y"] > cur.bottom() + 1
+                             or (abs(found[i]["y"] - cur.y) < 1 and found[i]["x"] > cur.x + 1)]
+                else:
+                    order = [i for i in order if found[i]["y"] < cur.y - 1
+                             or (abs(found[i]["y"] - cur.y) < 1 and found[i]["x"] < cur.x - 1)]
+            if not order:
+                continue
+            index = order[0] if step > 0 else self._group_start(page, order[-1])
+            return {"page": page, "id": self._answer_on_rule(page, index)}
+        return {}
+
+    @Slot(int, float, result="QVariantMap")
+    def answerFrom(self, page: int, y: float) -> dict:
+        """The first answer line at or below y on `page` (or the next few
+        pages), starting an answer there if it is blank. {"page", "id"} or {}."""
+        if not self._page_ok(page):
+            return {}
+        for p in range(page, min(len(self._page_sizes) - 1, page + 5) + 1):
+            found = self._rules_on(p)
+            index = next((i for i, r in enumerate(found) if p > page or r["y"] >= y), -1)
+            if index >= 0:
+                return {"page": p, "id": self._answer_on_rule(p, index)}
+        return {}
+
+    @Slot(QQuickTextDocument, float)
+    def setLinePitch(self, document: QQuickTextDocument, pitch: float) -> None:
+        """Space an answer editor's lines exactly `pitch` pixels apart, so
+        each line of text sits on a printed line. QML's TextEdit has no
+        line height of its own."""
+        doc = document.textDocument() if document is not None else None
+        if doc is None or pitch <= 0:
+            return
+        # Formatting is not an edit: keep it out of a fresh undo history.
+        fresh = not doc.isUndoAvailable()
+        block = doc.begin()
+        while block.isValid():
+            fmt = block.blockFormat()
+            if fmt.lineHeightType() != QTextBlockFormat.LineHeightTypes.FixedHeight.value or abs(fmt.lineHeight() - pitch) > 0.01:
+                fmt.setLineHeight(pitch, QTextBlockFormat.LineHeightTypes.FixedHeight.value)
+                cursor = QTextCursor(block)
+                cursor.setBlockFormat(fmt)
+            block = block.next()
+        if fresh:
+            doc.clearUndoRedoStacks()
+
+    @Slot(str, result="QVariantMap")
+    def answer(self, aid: str) -> dict:
+        ans = self._ann.answer(aid) if self._ann else None
+        return ans.to_dict() if ans else {}
+
+    @Slot(str, str)
+    def setAnswerText(self, aid: str, text: str) -> None:
+        ans = self._ann.answer(aid) if self._ann else None
+        if ans and ans.text != text:
+            self._ann.set_answer_text(aid, text)
+            # Saved shortly after typing stops; no revision bump, so the
+            # editor keeps its focus and cursor.
+            self._view_timer.start()
+
+    @Slot(str)
+    def finishAnswer(self, aid: str) -> None:
+        """Typing in an answer ended: drop it if it was left blank."""
+        ans = self._ann.answer(aid) if self._ann else None
+        if ans is None:
+            return
+        if ans.text.strip():
+            self._persist()
+        else:
+            self.removeAnswer(aid)
+
+    @Slot(str)
+    def removeAnswer(self, aid: str) -> None:
+        if self._ann and self._ann.remove_answer(aid):
             self._changed()
 
     # -- view state

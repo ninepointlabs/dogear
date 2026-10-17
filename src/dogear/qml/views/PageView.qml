@@ -9,7 +9,9 @@ import "../components"
 // so every page has an exact position: restoring the reading position,
 // jumping to a search hit or bookmark and anchoring zoom are plain math.
 // Only pages near the viewport load an image and build overlays.
-FocusScope {
+// Not a FocusScope: forceActiveFocus() on the view must take the keyboard
+// back from an answer being typed on a page.
+Item {
     id: view
     objectName: "pageView"
 
@@ -278,6 +280,52 @@ FocusScope {
         highlightActivated(hid, pos.x, pos.y + pos.h, editNote)
     }
 
+    // Answers on answer lines. `focusAnswer` holds the answer that should
+    // get the keyboard until its editor exists (it may be on a page that is
+    // only now scrolling into view).
+    property string focusAnswer: ""
+    property int focusAnswerPage: -1
+    function editAnswer(page, aid) {
+        hideNoteTip()
+        selection = null
+        const a = Doc.answer(aid)
+        if (!a.id || !tops.length) return
+        const top = (tops[page] || 0) + (a.y - a.size * 2) * pxPerPt
+        const bottom = (tops[page] || 0) + (a.y + (a.lines - 1) * a.pitch + 4) * pxPerPt
+        if (top < flick.contentY || bottom > flick.contentY + flick.height) {
+            stopSmooth()
+            flick.contentY = clampY(top - flick.height * 0.3)
+        }
+        if (maxContentX() > 0) {
+            const left = pageX(page) + a.x * pxPerPt
+            if (left < flick.contentX || left > flick.contentX + flick.width - 60)
+                flick.contentX = Math.max(0, Math.min(maxContentX(), left - flick.width / 4))
+        }
+        focusAnswer = aid
+        focusAnswerPage = page
+        Qt.callLater(applyAnswerFocus)
+    }
+    function applyAnswerFocus() {
+        if (!focusAnswer) return
+        const item = pages.itemAt(focusAnswerPage)
+        if (item && item.focusAnswer(focusAnswer)) {
+            focusAnswer = ""
+            focusAnswerPage = -1
+        }
+    }
+    // Tab / Shift+Tab / Enter from an answer: on to the next answer line.
+    function moveAnswer(aid, step) {
+        const next = Doc.adjacentAnswer(aid, step)
+        if (next.id) editAnswer(next.page, next.id)
+        else forceActiveFocus()
+    }
+    // "i": start typing on the first answer line in view.
+    function answerInView() {
+        const p = pageAt(flick.contentY + 1)
+        const next = Doc.answerFrom(p, viewTopInPage(p))
+        if (next.id) editAnswer(next.page, next.id)
+    }
+
     // The y (PDF points) of the viewport top within the current page, for bookmarks.
     function viewTopInPage(p) {
         return Math.max(0, (flick.contentY - (tops[p] || 0)) / pxPerPt)
@@ -352,6 +400,7 @@ FocusScope {
         else if (t >= "1" && t <= "5" && view.selection) view.highlightSelection(Doc.colors[Number(t) - 1], false)
         else if (event.key === Qt.Key_A && view.selection) view.highlightSelection(App.lastColor, true)
         else if (event.key === Qt.Key_B) view.addBookmarkHere()
+        else if (event.key === Qt.Key_I) view.answerInView()
         else if (t === "/") view.searchRequested()
         else if (event.key === Qt.Key_Backspace) view.back()
         else if (event.key === Qt.Key_Escape && view.selection) view.selection = null
@@ -417,6 +466,7 @@ FocusScope {
         onContentXChanged: if (view.ready) saveTimer.restart()
 
         Repeater {
+            id: pages
             model: Doc.pageCount
             delegate: PageItem { pageView: view }
         }

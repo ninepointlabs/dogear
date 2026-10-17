@@ -106,7 +106,7 @@ Window {
             onActivated: { Doc.adoptMarks(copyDialog.other.sha256); copyDialog.close() }
         }
     }
-    SettingsDialog { id: settings }
+    SettingsDialog { id: settings; objectName: "settingsDialog" }
     KeysDialog { id: keys }
     DgToast { id: toast }
 

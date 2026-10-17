@@ -450,10 +450,55 @@ class UiSmokeTest(unittest.TestCase):
         self.wait(200)
         self.assertEqual([r["sha256"] for r in self.library_rows()], [first_sha])
         self.assertFalse(store.has(second_sha))
-        self.assertEqual(len(list((store.root / "removed").glob(f"{second_sha}-*/{second_sha}.json"))), 1)
+        self.assertEqual(len(list(store.removed_dir.glob(f"{second_sha}-*/{second_sha}.json"))), 1)
         # The first copy and its PDF are untouched.
         self.assertTrue(self.pdf.is_file())
         self.assertGreater(len(store.load(first_sha).highlights), 0)
+
+    def test_sync_flow(self):
+        """Runs last (alphabetical order): the library folder shared with
+        another computer, and moving it from Settings."""
+        import json
+
+        store = self.engine._dogear_refs[2]
+        if not self.doc.loaded:
+            self.assertTrue(self.doc.open(str(self.pdf)))
+            self.wait(300)
+        sha = store.identify(self.pdf)
+        self.assertEqual(store.root, Path(self._tmp.name) / "data" / "Dogear")
+        self.assertTrue((store.ann_dir / f"{sha}.json").is_file())
+
+        # Another computer adds a highlight; it syncs into the open document.
+        before = len(self.doc.highlights)
+        data = json.loads(store.annotation_path(sha).read_text())
+        data["highlights"].append({"id": "fromotherpc", "page": 1, "rects": [[72, 100, 200, 14]],
+                                   "text": "synced in", "color": "green", "created": "2026-10-17T10:00:00+00:00"})
+        store.annotation_path(sha).with_name(".sync.tmp").write_text(json.dumps(data))
+        os.replace(store.annotation_path(sha).with_name(".sync.tmp"), store.annotation_path(sha))
+        self.wait_for(lambda: len(self.doc.highlights) == before + 1, msg="synced highlight")
+        # This computer's next edit keeps it.
+        self.doc.addBookmark(0, 0, "after sync")
+        on_disk = json.loads(store.annotation_path(sha).read_text())
+        self.assertIn("fromotherpc", [h["id"] for h in on_disk["highlights"]])
+        self.assertIn("after sync", [b["name"] for b in on_disk["bookmarks"]])
+
+        # Settings: move the library to a "Google Drive" folder.
+        target = Path(self._tmp.name) / "Google Drive" / "Dogear"
+        self.assertEqual(self.app_state.setLibraryFolder(str(target)), "")
+        self.assertEqual(store.root, target)
+        self.assertEqual(self.app_state.libraryFolder, str(target))
+        self.assertTrue((target / ".dogear" / "annotations" / f"{sha}.json").is_file())
+        self.assertTrue(store.copy_path(sha).is_file())
+        self.assertEqual(store.copy_path(sha).parent, target / "Library")
+        # The open document came along and still has its marks.
+        self.assertTrue(self.doc.loaded)
+        self.assertIn("synced in", [h["text"] for h in self.doc.highlights])
+        from dogear import config
+
+        self.assertEqual(config.load_settings().library_dir, str(target))
+        # The export default follows the library folder (when not set).
+        self.app_state.setExportDir("")
+        self.assertEqual(self.app_state.exportDir, str(target / "Notes"))
 
 
 if __name__ == "__main__":

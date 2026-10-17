@@ -56,8 +56,15 @@ def create(argv0: str = APP_ID):
 
     info = AppInfo()
     theme = Theme()
-    store = AnnotationStore(config.data_dir())
-    state = AppController(store)
+    settings = config.load_settings()
+    store = AnnotationStore(settings.resolved_library_dir(), local=config.data_dir())
+    try:
+        # Dogear's first layout kept everything in the data dir.
+        store.migrate_old_layout(config.data_dir())
+        store.resolve_conflicts()
+    except OSError as exc:
+        logging.getLogger(__name__).error("Could not set up the library folder %s: %s", store.root, exc)
+    state = AppController(store, settings)
     doc = DocumentController(store, state)
     qmlRegisterSingletonInstance(AppInfo, "Dogear", 1, 0, "AppInfo", info)
     qmlRegisterSingletonInstance(Theme, "Dogear", 1, 0, "Theme", theme)

@@ -102,8 +102,12 @@ class TestLibraryCopies(LibraryTestCase):
     def test_copy_kept_and_used_when_original_is_gone(self):
         doc = self.open("class/Bio.pdf", b"bio")
         src = self.tmp / "class/Bio.pdf"
-        self.assertTrue(self.store.keep_copy(doc.sha256, src))
+        self.assertTrue(self.store.keep_copy(doc, src))
+        self.store.save(doc)
         copy = self.store.copy_path(doc.sha256)
+        # A readable name in Library/, recorded so other computers find it.
+        self.assertEqual(copy, self.store.library_dir / "Bio.pdf")
+        self.assertEqual(self.store.load(doc.sha256).copy, "Library/Bio.pdf")
         self.assertEqual(copy.read_bytes(), src.read_bytes())
         self.assertEqual(self.store.openable_path(doc), str(src))
         src.unlink()
@@ -121,7 +125,7 @@ class TestLibraryCopies(LibraryTestCase):
     def test_copy_not_made_from_wrong_bytes(self):
         doc = self.open("class/Bio.pdf", b"bio")
         self.pdf("class/Bio.pdf", b"changed")
-        self.assertFalse(self.store.keep_copy(doc.sha256, self.tmp / "class/Bio.pdf"))
+        self.assertFalse(self.store.keep_copy(doc, self.tmp / "class/Bio.pdf"))
         self.assertFalse(self.store.copy_path(doc.sha256).exists())
 
 
@@ -239,7 +243,8 @@ class TestRenameRemove(LibraryTestCase):
         doc.add_highlight(0, [Rect(1, 2, 3, 4)], "kept safe")
         self.store.save(doc)
         src = self.tmp / "class/Bio.pdf"
-        self.store.keep_copy(doc.sha256, src)
+        self.store.keep_copy(doc, src)
+        self.store.save(doc)
         target = self.store.remove_document(doc.sha256)
         self.assertFalse(self.store.has(doc.sha256))
         self.assertFalse(self.store.copy_path(doc.sha256).exists())
@@ -247,7 +252,7 @@ class TestRenameRemove(LibraryTestCase):
         self.assertEqual([r for r in self.store.recents() if r.sha256 == doc.sha256], [])
         self.assertTrue(src.is_file())  # the PDF itself is untouched
         self.assertTrue((target / f"{doc.sha256}.json").is_file())
-        self.assertTrue((target / f"{doc.sha256}.pdf").is_file())
+        self.assertTrue((target / "Bio.pdf").is_file())
         self.assertIsNone(self.store.remove_document(doc.sha256))
         # Opening the PDF again starts a fresh, empty document.
         again = self.store.open_document(src)

@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Property, QModelIndex, QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import Property, QFileSystemWatcher, QModelIndex, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QGuiApplication, QTextBlockFormat, QTextCursor
 from PySide6.QtPdf import QPdfDocument, QPdfSearchModel
 from PySide6.QtQuick import QQuickTextDocument
@@ -40,6 +40,9 @@ class DocumentController(QObject):
         self._app = app
         self._pdf = QPdfDocument(self)
         self._ann: DocAnnotations | None = None
+        # The document's file as this computer last read or wrote it; what
+        # changed on disk since came from another computer.
+        self._base: dict | None = None
         self._path = ""
         self._revision = 0
         self._page_sizes: list[list[float]] = []
@@ -60,6 +63,8 @@ class DocumentController(QObject):
 
         self._view_timer = QTimer(self, singleShot=True, interval=800)
         self._view_timer.timeout.connect(self._persist)
+        app.storeChanged.connect(self._sync_from_disk)
+        app._doc = self
 
     # -- loading
     @Slot(str, result=bool)
@@ -88,6 +93,8 @@ class DocumentController(QObject):
             self._pdf.close()
             self._fail(f"Could not read {path.name}: {exc}")
             return False
+        self._base = self._store.read_dict(self._ann.sha256)
+        self._app.watch()  # its folders may have just been made
         self._path = str(path.resolve())
         self._page_sizes = []
         for i in range(self._pdf.pageCount()):
@@ -104,7 +111,7 @@ class DocumentController(QObject):
             self._ann.carried_from = ""
             self._save()
         self._keep_copy()
-        if self._store.is_library_copy(Path(self._path)):
+        if self._store.is_library_copy(Path(self._path)) and any(Path(p).parent.is_dir() for p in self._ann.paths):
             self.message.emit("The original PDF wasn't found, so this is Dogear's copy of it.")
         self.opened.emit()
         if self._ann.is_empty():
@@ -117,10 +124,13 @@ class DocumentController(QObject):
         """Copy a marked-up PDF into the library (setting, on by default)."""
         if self._ann is None or self._ann.is_empty() or not self._app.settings.keep_copies:
             return
+        before = self._ann.copy
         try:
-            self._store.keep_copy(self._ann.sha256, Path(self._path))
+            self._store.keep_copy(self._ann, Path(self._path))
         except OSError as exc:
             log.warning("Could not copy %s into the library: %s", self._path, exc)
+        if self._ann.copy != before:
+            self._save()
 
     @Slot(str)
     def adoptMarks(self, sha: str) -> None:
@@ -154,6 +164,7 @@ class DocumentController(QObject):
         self.setSearch("")
         self._pdf.close()
         self._ann = None
+        self._base = None
         self._path = ""
         self._page_sizes = []
         self._outline = []
@@ -164,6 +175,18 @@ class DocumentController(QObject):
         self.loadedChanged.emit()
         self.annotationsChanged.emit()
 
+    def close_for_move(self) -> str:
+        """Close the document before the library moves; returns its hash."""
+        sha = self._ann.sha256 if self._ann else ""
+        self.close()
+        return sha
+
+    def reopen(self, sha: str) -> None:
+        """Open a document again after the library moved."""
+        path = self._store.openable_path(self._store.load(sha)) if self._store.has(sha) else ""
+        if path:
+            self.open(path)
+
     @Slot()
     def flush(self) -> None:
         self._persist()
@@ -172,10 +195,34 @@ class DocumentController(QObject):
         if self._ann is None:
             return
         try:
-            self._store.save(self._ann)
+            saved, self._base, merged = self._store.save_synced(self._ann, self._base)
         except OSError as exc:
             log.error("Saving annotations failed: %s", exc)
             self.message.emit(f"Could not save annotations: {exc}")
+            return
+        if merged:
+            self._take(saved)
+
+    def _take(self, merged: DocAnnotations) -> None:
+        """Show a version merged with changes from another computer."""
+        if merged.to_dict() == self._ann.to_dict():
+            return
+        # Keep an answer that is open but still blank (blanks aren't saved).
+        ids = {a.id for a in merged.answers}
+        merged.answers += [a for a in self._ann.answers if not a.text.strip() and a.id not in ids]
+        merged.answers.sort(key=Answer.sort_key)
+        self._ann = merged
+        self._revision += 1
+        self.annotationsChanged.emit()
+        self.message.emit("Updated with changes from another computer.")
+
+    def _sync_from_disk(self) -> None:
+        """The library folder changed: take in this document's changes."""
+        if self._ann is None:
+            return
+        disk = self._store.read_dict(self._ann.sha256)
+        if disk is not None and disk != self._base:
+            self._save()
 
     def _changed(self) -> None:
         self._save()
@@ -622,10 +669,20 @@ class AppController(QObject):
     recentsChanged = Signal()
     settingsChanged = Signal()
 
-    def __init__(self, store: AnnotationStore, parent=None):
+    # Something in the library folder changed on disk (another computer's
+    # edits synced in, or this one's own saves).
+    storeChanged = Signal()
+
+    def __init__(self, store: AnnotationStore, settings: config.Settings | None = None, parent=None):
         super().__init__(parent)
         self._store = store
-        self.settings = config.load_settings()
+        self.settings = settings or config.load_settings()
+        self._watcher = QFileSystemWatcher(self)
+        self._watcher.directoryChanged.connect(lambda *_: self._disk_timer.start())
+        self._disk_timer = QTimer(self, singleShot=True, interval=400)
+        self._disk_timer.timeout.connect(self._disk_changed)
+        self._snapshot = self._folder_snapshot()
+        self.watch()
         self._last_color = "yellow"
         self._recents: list[dict] = []
         self.refreshRecents()
@@ -644,12 +701,51 @@ class AppController(QObject):
             return
         doc = self._store.load(self._backfill.pop(0))
         path = self._store.openable_path(doc)
-        if path and not self._store.is_library_copy(Path(path)):
+        if path:
             try:
-                self._store.keep_copy(doc.sha256, Path(path))
+                if self._store.keep_copy(doc, Path(path)):
+                    self._store.save(doc)
             except OSError as exc:
                 log.warning("Could not copy %s into the library: %s", path, exc)
         QTimer.singleShot(200, self._backfill_copy)
+
+    # -- the library folder on disk
+    def watch(self) -> None:
+        """Watch the folders another computer's changes arrive in."""
+        # The folder itself too, to notice .dogear/ and Library/ appearing.
+        store = self._store
+        dirs = [str(d) for d in (store.root, store.meta_dir, store.ann_dir, store.library_dir) if d.is_dir()]
+        stale = [d for d in self._watcher.directories() if d not in dirs]
+        if stale:
+            self._watcher.removePaths(stale)
+        new = [d for d in dirs if d not in self._watcher.directories()]
+        if new:
+            self._watcher.addPaths(new)
+
+    def _folder_snapshot(self) -> dict:
+        out = {}
+        for d in (self._store.ann_dir, self._store.meta_dir, self._store.library_dir):
+            try:
+                for f in d.iterdir():
+                    if not f.name.startswith("."):
+                        st = f.stat()
+                        out[str(f)] = (st.st_size, st.st_mtime_ns)
+            except OSError:
+                continue
+        return out
+
+    def _disk_changed(self) -> None:
+        self.watch()
+        try:
+            self._store.resolve_conflicts()
+        except OSError as exc:
+            log.warning("Merging sync conflict copies failed: %s", exc)
+        snapshot = self._folder_snapshot()
+        if snapshot == self._snapshot:
+            return
+        self._snapshot = snapshot
+        self.storeChanged.emit()
+        self.libraryChanged.emit()
 
     @Slot()
     def refreshRecents(self) -> None:
@@ -693,8 +789,49 @@ class AppController(QObject):
             log.error("Saving settings failed: %s", exc)
         self.settingsChanged.emit()
 
-    dataDir = Property(str, lambda self: str(self._store.root), constant=True)
-    libraryDir = Property(str, lambda self: str(self._store.library_dir), constant=True)
+    dataDir = Property(str, lambda self: str(self._store.root), notify=settingsChanged)
+    libraryDir = Property(str, lambda self: str(self._store.library_dir), notify=settingsChanged)
+    removedDir = Property(str, lambda self: str(self._store.removed_dir), notify=settingsChanged)
+    # The library folder: notes, categories and PDF copies, maybe synced.
+    libraryFolder = Property(str, lambda self: str(self._store.root), notify=settingsChanged)
+
+    @Property(bool, notify=settingsChanged)
+    def libraryFolderIsDefault(self) -> bool:
+        return self._store.root.resolve() == config.default_library_dir().resolve()
+
+    @Slot(str, result=str)
+    def setLibraryFolder(self, value: str) -> str:
+        """Move the library to another folder (empty: the default one) and
+        use it from now on. Returns an error message, or "" when done."""
+        target = _to_path(value) if value.strip() else config.default_library_dir()
+        if target.resolve() == self._store.root.resolve():
+            return ""
+        if target.exists() and not target.is_dir():
+            return f"{target} is not a folder."
+        doc = self._doc
+        sha = doc.close_for_move() if doc is not None else ""
+        try:
+            self._store.move_to(target)
+        except OSError as exc:
+            log.error("Moving the library to %s failed: %s", target, exc)
+            message = f"Could not move the library to {target}: {exc}"
+        else:
+            message = ""
+            self.settings.library_dir = "" if target.resolve() == config.default_library_dir().resolve() else str(target)
+            try:
+                config.save_settings(self.settings)
+            except OSError as exc:
+                log.error("Saving settings failed: %s", exc)
+        self._snapshot = self._folder_snapshot()
+        self.watch()
+        self.settingsChanged.emit()
+        self.libraryChanged.emit()
+        self.refreshRecents()
+        if doc is not None and sha:
+            doc.reopen(sha)
+        return message
+
+    _doc = None  # the DocumentController, set by it
 
     @Property(bool, notify=settingsChanged)
     def keepCopies(self) -> bool:

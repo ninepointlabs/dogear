@@ -121,7 +121,7 @@ def entry(store: AnnotationStore, doc: DocAnnotations) -> dict:
         "path": path,  # "" when neither the file nor a copy can be found
         "folder": _folder(original or last_path),
         "original": bool(original),
-        "copy": store.copy_path(doc.sha256).is_file(),
+        "copy": store.copy_path(doc.sha256, doc).is_file(),
         "opened": opened,
         "openedText": _when(opened),
         "added": doc.added or _iso(opened),

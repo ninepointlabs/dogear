@@ -49,17 +49,38 @@ def documents_dir() -> Path:
     return Path.home() / "Documents"
 
 
+def default_library_dir() -> Path:
+    """~/Documents/Dogear. DOGEAR_LIBRARY_DIR overrides it; with only
+    DOGEAR_DATA_DIR set (tests, trial runs) it sits inside that, so a trial
+    never touches the real library."""
+    override = os.environ.get("DOGEAR_LIBRARY_DIR")
+    if override:
+        return Path(override)
+    if os.environ.get("DOGEAR_DATA_DIR"):
+        return data_dir() / "Dogear"
+    return documents_dir() / "Dogear"
+
+
 @dataclass
 class Settings:
     export_dir: str = ""
+    # The library folder: your notes, categories and copies of the PDFs.
+    # Empty means ~/Documents/Dogear. Point it at a synced folder to have
+    # the same library on several computers.
+    library_dir: str = ""
     # Keep a private copy of every PDF you mark up in the library folder,
     # so your marks always have their PDF even if the original goes away.
     keep_copies: bool = True
 
+    def resolved_library_dir(self) -> Path:
+        if self.library_dir.strip() and not os.environ.get("DOGEAR_LIBRARY_DIR"):
+            return Path(self.library_dir).expanduser()
+        return default_library_dir()
+
     def resolved_export_dir(self) -> Path:
         if self.export_dir.strip():
             return Path(self.export_dir).expanduser()
-        return documents_dir() / "Dogear"
+        return self.resolved_library_dir() / "Notes"
 
 
 def load_settings(path: Path | None = None) -> Settings:
@@ -74,8 +95,10 @@ def load_settings(path: Path | None = None) -> Settings:
     if not isinstance(raw, dict):
         return Settings()
     export_dir = raw.get("export_dir", "")
+    library_dir = raw.get("library_dir", "")
     return Settings(
         export_dir=export_dir if isinstance(export_dir, str) else "",
+        library_dir=library_dir if isinstance(library_dir, str) else "",
         keep_copies=raw.get("keep_copies", True) is not False,
     )
 

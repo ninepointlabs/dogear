@@ -1,16 +1,23 @@
 """Annotation store: highlights, notes, bookmarks and view state per PDF (no Qt).
 
-Annotations live in a central app-data directory, one JSON file per document,
-keyed by the SHA-256 of the PDF's bytes:
+Everything you make lives in the library folder (by default
+~/Documents/Dogear), which can be synced between computers:
 
-    $XDG_DATA_HOME/dogear/
-        index.json                  recent files + path -> hash cache
-        annotations/<sha256>.json   one document's annotations
+    <library folder>/
+        Library/                    copies of the PDFs you mark up
+        Notes/                      Markdown exports (the default export folder)
+        .dogear/annotations/<sha256>.json   one document's annotations
+        .dogear/library.json        your categories
+        .dogear/removed/            documents taken out of the library
 
-Keying by content means a renamed or moved PDF keeps its annotations, the
-original PDF is never written to, and nothing is dropped into class folders.
-When the file at a known path changes (a new revision of the same handout),
-its annotations are carried over to the new hash so they are not lost.
+What belongs to one computer stays in $XDG_DATA_HOME/dogear/index.json:
+the recent files and a cache of file hashes.
+
+Annotations are keyed by the SHA-256 of the PDF's bytes, so a renamed or
+moved PDF keeps them, the same PDF has the same annotations on every
+computer, and the PDF itself is never written to. When the file at a known
+path changes (a new revision of the same handout), its annotations are
+carried over to the new hash so they are not lost.
 """
 
 from __future__ import annotations
@@ -333,6 +340,9 @@ class DocAnnotations:
     pdf_id: str = ""  # the PDF's permanent document ID (trailer /ID), hex
     declined: list[str] = field(default_factory=list)  # copies not to offer marks from again
     label: str = ""  # the user's own name for it; the PDF's title is re-read on every open
+    # Where a copy of this PDF lives inside the library folder (relative,
+    # with "/"), so the copy is found on every computer the folder syncs to.
+    copy: str = ""
 
     def display_name(self) -> str:
         """What to call the document: your name for it, its title, its file name."""
@@ -511,6 +521,7 @@ class DocAnnotations:
             "pdf_id": self.pdf_id,
             "declined": self.declined,
             "label": self.label,
+            "copy": self.copy,
         })
         return data
 
@@ -538,6 +549,7 @@ class DocAnnotations:
             pdf_id=_str(raw.get("pdf_id")),
             declined=_strings(raw.get("declined")),
             label=_str(raw.get("label")),
+            copy=_str(raw.get("copy")),
         )
         doc.highlights.sort(key=Highlight.sort_key)
         doc.bookmarks.sort(key=lambda b: (b.page, b.y))
@@ -556,26 +568,56 @@ class RecentFile:
         return Path(self.path).is_file()
 
 
-class AnnotationStore:
-    def __init__(self, root: Path):
-        self.root = root
-        self.ann_dir = root / "annotations"
-        self.library_dir = root / "library"
-        self.index_path = root / "index.json"
-        self._index = self._load_index()
+META_DIR = ".dogear"  # Dogear's own files inside the library folder
+LIBRARY_DIR = "Library"  # copies of the PDFs inside the library folder
+_SHA = re.compile(r"[0-9a-f]{64}")
+# A sync service's conflict copy of <sha>.json: Syncthing's
+# "<sha>.sync-conflict-….json", Dropbox's "<sha> (… conflicted copy …).json",
+# Google Drive's "<sha> (1).json".
+_CONFLICT = re.compile(r"^([0-9a-f]{64})(.+)\.json$")
+_UNSAFE_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
 
-    # -- index (recents + hash cache)
+
+class AnnotationStore:
+    """The library folder and this computer's own state.
+
+    `root` is the library folder (by default ~/Documents/Dogear), which can be
+    synced between computers. `local` holds what belongs to this computer
+    only: the recent files and the cache of file hashes."""
+
+    def __init__(self, root: Path, local: Path | None = None):
+        self._set_root(root)
+        self.local = local or root / META_DIR / "local"
+        self.index_path = self.local / "index.json"
+        self._legacy_categories: list[str] = []
+        self._index = self._load_index()
+        if self._legacy_categories:
+            # Categories used to live in the local index; they sync now.
+            for name in self._legacy_categories:
+                self.add_category(name)
+            self._save_index()
+
+    def _set_root(self, root: Path) -> None:
+        self.root = root
+        self.meta_dir = root / META_DIR
+        self.ann_dir = self.meta_dir / "annotations"
+        self.removed_dir = self.meta_dir / "removed"
+        self.library_path = self.meta_dir / "library.json"
+        self.library_dir = root / LIBRARY_DIR
+        self._copies: tuple[int, dict[str, Path]] | None = None
+
+    # -- index (recents + hash cache), local to this computer
     def _load_index(self) -> dict:
         raw = self._read_json(self.index_path)
         if not isinstance(raw, dict):
             raw = {}
         files = raw.get("files") if isinstance(raw.get("files"), dict) else {}
         recents = raw.get("recent") if isinstance(raw.get("recent"), list) else []
+        self._legacy_categories = _strings(raw.get("categories"))
         return {
             "dogear": SCHEMA_VERSION,
             "files": files,
             "recent": [r for r in recents if isinstance(r, dict)],
-            "categories": _strings(raw.get("categories")),
         }
 
     def _save_index(self) -> None:
@@ -625,20 +667,53 @@ class AnnotationStore:
     def annotation_path(self, sha: str) -> Path:
         return self.ann_dir / f"{sha}.json"
 
-    def load(self, sha: str) -> DocAnnotations:
+    def read_dict(self, sha: str) -> dict | None:
+        """The document's file as last written, by any computer."""
         raw = self._read_json(self.annotation_path(sha))
-        if not isinstance(raw, dict):
+        return raw if isinstance(raw, dict) else None
+
+    def load(self, sha: str) -> DocAnnotations:
+        raw = self.read_dict(sha)
+        if raw is None:
             return DocAnnotations(sha256=sha)
         return DocAnnotations.from_dict(raw, sha)
 
     def has(self, sha: str) -> bool:
         return self.annotation_path(sha).is_file()
 
-    def save(self, doc: DocAnnotations) -> None:
-        atomic_write_text(
-            self.annotation_path(doc.sha256),
-            json.dumps(doc.to_dict(), indent=2, ensure_ascii=False) + "\n",
-        )
+    def save(self, doc: DocAnnotations) -> dict:
+        """Write the document's file; returns what was written."""
+        data = doc.to_dict()
+        atomic_write_text(self.annotation_path(doc.sha256), json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        return data
+
+    def save_synced(self, doc: DocAnnotations, base: dict | None) -> tuple[DocAnnotations, dict, bool]:
+        """Save a document that is open here, keeping changes that reached
+        its file since `base` (what this computer last read or wrote), such
+        as edits synced in from another computer.
+
+        Returns (the document as saved, what is on disk, whether it took in
+        changes from the file)."""
+        disk = self.read_dict(doc.sha256)
+        if disk is None or base is None or disk == base:
+            return doc, self.save(doc), False
+        from .sync import merge
+
+        merged = merge(DocAnnotations.from_dict(base, doc.sha256), doc, DocAnnotations.from_dict(disk, doc.sha256))
+        data = merged.to_dict()
+        if data != disk:
+            # Only write what differs: an unchanged file must not bounce back
+            # and forth between computers.
+            data = self.save(merged)
+        return merged, data, True
+
+    def in_folder(self, path: Path) -> str | None:
+        """The path inside the library folder ("Library/x.pdf"), or None
+        when the file is somewhere else."""
+        try:
+            return path.resolve().relative_to(self.root.resolve()).as_posix()
+        except (ValueError, OSError):
+            return None
 
     def open_document(
         self, path: Path, title: str = "", *, page_count: int = 0, pdf_id: str = ""
@@ -656,14 +731,19 @@ class AnnotationStore:
                 log.info("%s changed; carrying annotations over from %s", path, prev_sha[:12])
                 doc = DocAnnotations.from_dict(old.to_dict(), sha)
                 doc.carried_from = prev_sha
-        from_library = self.is_library_copy(path)
-        if not from_library or not doc.file_name:
+                doc.copy = ""
+        rel = self.in_folder(path)
+        if rel is None or not doc.file_name:
             doc.file_name = path.name
         if title:
             doc.title = title
-        # The library's own copy is a fallback, not a place the user keeps it.
-        if not from_library and str(path) not in doc.paths:
-            doc.paths.append(str(path))
+        if rel is None:
+            # A place on this computer; the library folder's own files are
+            # found through `copy` instead, on every computer.
+            if str(path) not in doc.paths:
+                doc.paths.append(str(path))
+        elif not doc.copy or not (self.root / doc.copy).is_file():
+            doc.copy = rel
         doc.added = doc.added or now_iso()
         doc.opened = time.time()
         doc.page_count = page_count or doc.page_count
@@ -677,40 +757,89 @@ class AnnotationStore:
         """Every document Dogear has opened."""
         out = []
         for f in sorted(self.ann_dir.glob("*.json")) if self.ann_dir.is_dir() else []:
-            sha = f.stem
-            if len(sha) == 64:
-                out.append(self.load(sha))
+            if _SHA.fullmatch(f.stem):
+                out.append(self.load(f.stem))
         return out
 
-    def copy_path(self, sha: str) -> Path:
-        return self.library_dir / f"{sha}.pdf"
+    def _scan_copies(self) -> dict[str, Path]:
+        """The PDFs in the Library folder by hash, for copies whose file was
+        renamed there or that synced in before their notes did."""
+        try:
+            stamp = self.library_dir.stat().st_mtime_ns
+        except OSError:
+            return {}
+        if self._copies and self._copies[0] == stamp:
+            return self._copies[1]
+        found: dict[str, Path] = {}
+        before = len(self._index["files"])
+        for f in sorted(self.library_dir.glob("*.pdf")):
+            try:
+                sha = self.identify(f)
+                self._remember_path(f.resolve(), sha)
+            except OSError:
+                continue
+            found.setdefault(sha, f)
+        if len(self._index["files"]) != before:
+            self._save_index()
+        self._copies = (stamp, found)
+        return found
+
+    def _copy_name(self, doc: DocAnnotations) -> str:
+        """A readable file name for a new copy: the PDF's own file name."""
+        name = doc.file_name or f"{doc.display_name()}.pdf"
+        stem = _UNSAFE_NAME.sub(" ", Path(name).stem).strip(" .") or doc.sha256[:12]
+        if (self.library_dir / f"{stem}.pdf").exists():
+            # Another PDF with the same name ("Lecture 1.pdf" from two classes).
+            return f"{stem} ({doc.sha256[:8]}).pdf"
+        return f"{stem}.pdf"
+
+    def copy_path(self, sha: str, doc: DocAnnotations | None = None) -> Path:
+        """The library folder's copy of a PDF, or where a new one would go."""
+        doc = doc if doc is not None else self.load(sha)
+        if doc.copy and (self.root / doc.copy).is_file():
+            return self.root / doc.copy
+        found = self._scan_copies().get(sha)
+        if found is not None:
+            return found
+        return self.library_dir / self._copy_name(doc)
 
     def is_library_copy(self, path: Path) -> bool:
-        return path.parent == self.library_dir.resolve() if self.library_dir.exists() else False
+        """Whether a file lives inside the library folder."""
+        return self.in_folder(path) is not None
 
-    def keep_copy(self, sha: str, source: Path) -> bool:
-        """Copy the PDF into the library, once. True if a copy exists after."""
-        target = self.copy_path(sha)
-        if target.is_file():
+    def keep_copy(self, doc: DocAnnotations, source: Path) -> bool:
+        """Make sure the library folder holds this PDF, copying it into
+        Library/ once. Sets `doc.copy`; the caller saves the document.
+        True if the folder holds the PDF after."""
+        existing = self.copy_path(doc.sha256, doc)
+        if existing.is_file():
+            doc.copy = self.in_folder(existing) or doc.copy
             return True
         if not source.is_file():
             return False
+        own = self.in_folder(source)
+        if own is not None:  # already in the folder: no second copy
+            doc.copy = own
+            return True
         self.library_dir.mkdir(parents=True, exist_ok=True)
-        tmp = target.with_name(f".{target.name}.tmp")
+        tmp = existing.with_name(f".{existing.name}.tmp")
         try:
             shutil.copyfile(source, tmp)
-            if file_sha256(tmp) != sha:  # the source changed under us
+            if file_sha256(tmp) != doc.sha256:  # the source changed under us
                 tmp.unlink()
                 return False
-            os.replace(tmp, target)
+            os.replace(tmp, existing)
         except OSError:
             tmp.unlink(missing_ok=True)
             raise
+        self._copies = None
+        doc.copy = self.in_folder(existing) or ""
         return True
 
     def openable_path(self, doc: DocAnnotations) -> str:
-        """Where to open a document from: the most recent path that still
-        holds this exact file, else the library copy, else ""."""
+        """Where to open a document from: the most recent path on this
+        computer that still holds this exact file, else the library
+        folder's copy, else ""."""
         for p in reversed(doc.paths):
             path = Path(p)
             try:
@@ -718,30 +847,56 @@ class AnnotationStore:
                     return p
             except OSError:
                 continue
-        copy = self.copy_path(doc.sha256)
-        return str(copy) if copy.is_file() else ""
+        copy = self.copy_path(doc.sha256, doc)
+        try:
+            if copy.is_file() and self.identify(copy) == doc.sha256:
+                return str(copy)
+        except OSError:
+            pass
+        found = self._scan_copies().get(doc.sha256)
+        return str(found) if found is not None else ""
+
+    # -- categories, kept in the library folder so they sync
+    def _listed_categories(self) -> list[str]:
+        raw = self._read_json(self.library_path)
+        return _strings(raw.get("categories")) if isinstance(raw, dict) else []
+
+    def _write_categories(self, names: list[str]) -> None:
+        data = {"dogear": SCHEMA_VERSION, "categories": sorted(dict.fromkeys(names), key=str.casefold)}
+        atomic_write_text(self.library_path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
     def categories(self) -> list[str]:
-        return list(self._index["categories"])
+        """Your categories, including any a document synced in with before
+        the category list itself arrived."""
+        names = self._listed_categories()
+        seen = {n.casefold() for n in names}
+        for doc in self.documents():
+            for c in doc.categories:
+                if c.casefold() not in seen:
+                    names.append(c)
+                    seen.add(c.casefold())
+        return sorted(names, key=str.casefold)
 
     def add_category(self, name: str) -> str:
         name = name.strip()
-        if name and name.casefold() not in (c.casefold() for c in self._index["categories"]):
-            self._index["categories"].append(name)
-            self._index["categories"].sort(key=str.casefold)
-            self._save_index()
-        return next((c for c in self._index["categories"] if c.casefold() == name.casefold()), "")
+        cats = self._listed_categories()
+        same = next((c for c in cats if c.casefold() == name.casefold()), None)
+        if same is not None or not name:
+            return same or ""
+        self._write_categories(cats + [name])
+        return name
 
     def rename_category(self, old: str, new: str) -> None:
         new = new.strip()
-        if not new or old not in self._index["categories"]:
+        cats = self._listed_categories()
+        in_docs = any(old in d.categories for d in self.documents())
+        if not new or (old not in cats and not in_docs):
             return
-        clash = next((c for c in self._index["categories"] if c.casefold() == new.casefold() and c != old), None)
-        cats = [c for c in self._index["categories"] if c != old]
+        clash = next((c for c in cats if c.casefold() == new.casefold() and c != old), None)
+        cats = [c for c in cats if c != old]
         if clash is None:
             cats.append(new)
-        self._index["categories"] = sorted(cats, key=str.casefold)
-        self._save_index()
+        self._write_categories(cats)
         target = clash or new
         for doc in self.documents():
             if old in doc.categories:
@@ -750,14 +905,19 @@ class AnnotationStore:
 
     def remove_category(self, name: str) -> None:
         """Delete a category. Documents in it stay in the library."""
-        if name not in self._index["categories"]:
-            return
-        self._index["categories"] = [c for c in self._index["categories"] if c != name]
-        self._save_index()
+        cats = self._listed_categories()
+        if name in cats:
+            self._write_categories([c for c in cats if c != name])
         for doc in self.documents():
             if name in doc.categories:
                 doc.categories = [c for c in doc.categories if c != name]
                 self.save(doc)
+
+    def set_categories(self, sha: str, names: list[str]) -> DocAnnotations:
+        doc = self.load(sha)
+        doc.categories = sorted({self.add_category(n) for n in names if n.strip()} - {""}, key=str.casefold)
+        self.save(doc)
+        return doc
 
     def rename_document(self, sha: str, label: str) -> DocAnnotations:
         """Give a document your own name; empty goes back to its own title."""
@@ -772,19 +932,23 @@ class AnnotationStore:
 
     def remove_document(self, sha: str) -> Path | None:
         """Take a document out of the library: its marks and Dogear's copy of
-        the PDF move to removed/<sha>-<time>/ (restore by moving them back),
-        and it leaves the recent list. The PDF itself is not touched.
+        the PDF move to .dogear/removed/<sha>-<time>/ (restore by moving them
+        back), and it leaves the recent list. The PDF itself is not touched,
+        nor a PDF of yours that sits elsewhere in the library folder.
         Returns the folder they went to, or None if there was nothing."""
         ann = self.annotation_path(sha)
-        copy = self.copy_path(sha)
-        if not ann.is_file() and not copy.is_file():
+        doc = self.load(sha)
+        copy = self.copy_path(sha, doc)
+        dogear_copy = copy.is_file() and copy.parent.resolve() == self.library_dir.resolve()
+        if not ann.is_file() and not dogear_copy:
             return None
-        target = self.root / "removed" / f"{sha}-{int(time.time())}"
+        target = self.removed_dir / f"{sha}-{int(time.time())}"
         target.mkdir(parents=True, exist_ok=True)
         if ann.is_file():
             os.replace(ann, target / ann.name)
-        if copy.is_file():
+        if dogear_copy:
             os.replace(copy, target / copy.name)
+            self._copies = None
         self._index["recent"] = [r for r in self._index["recent"] if r.get("sha256") != sha]
         # Forget which paths held it, so opening the PDF again starts fresh.
         self._index["files"] = {
@@ -793,11 +957,142 @@ class AnnotationStore:
         self._save_index()
         return target
 
-    def set_categories(self, sha: str, names: list[str]) -> DocAnnotations:
-        doc = self.load(sha)
-        doc.categories = sorted({self.add_category(n) for n in names if n.strip()} - {""}, key=str.casefold)
-        self.save(doc)
-        return doc
+    # -- sync conflicts and moving the library
+    def resolve_conflicts(self) -> list[str]:
+        """Merge the conflict copies a sync service left next to document
+        files (and the category list) into them. Nothing is dropped: both
+        versions' marks are kept, and the conflict copy itself moves to
+        .dogear/removed/conflicts/. Returns the documents merged."""
+        from .sync import merge
+
+        merged: list[str] = []
+        keep = self.removed_dir / "conflicts"
+        for f in sorted(self.ann_dir.glob("*.json")) if self.ann_dir.is_dir() else []:
+            m = _CONFLICT.match(f.name)
+            if not m:
+                continue
+            sha = m.group(1)
+            raw = self._read_json(f)
+            if isinstance(raw, dict):
+                theirs = DocAnnotations.from_dict(raw, sha)
+                self.save(merge(None, self.load(sha), theirs) if self.has(sha) else theirs)
+                merged.append(sha)
+            if f.exists():
+                keep.mkdir(parents=True, exist_ok=True)
+                os.replace(f, keep / f.name)
+        for f in sorted(self.meta_dir.glob("library*.json")) if self.meta_dir.is_dir() else []:
+            if f.name == self.library_path.name:
+                continue
+            raw = self._read_json(f)
+            if isinstance(raw, dict):
+                self._write_categories(self._listed_categories() + _strings(raw.get("categories")))
+            if f.exists():
+                keep.mkdir(parents=True, exist_ok=True)
+                os.replace(f, keep / f.name)
+        if merged:
+            log.info("Merged sync conflict copies of %d document(s)", len(merged))
+        return merged
+
+    def _absorb(self, src_ann: Path, copies: dict[str, Path], src_root: Path | None, src_removed: Path) -> int:
+        """Take in documents from another library folder (or the old
+        layout), merging with ones already here and moving their PDF copies
+        into Library/. Returns how many documents came over."""
+        from .sync import merge
+
+        count = 0
+        for f in sorted(src_ann.glob("*.json")):
+            if not _SHA.fullmatch(f.stem):
+                continue
+            raw = self._read_json(f)
+            if not isinstance(raw, dict):
+                continue
+            sha = f.stem
+            theirs = DocAnnotations.from_dict(raw, sha)
+            src_rel = theirs.copy
+            doc = merge(None, self.load(sha), theirs) if self.has(sha) else theirs
+            doc.copy = ""
+            if src_rel and src_root is not None and sha not in copies:
+                # A PDF of yours in the old folder stays there: remember it
+                # as a place this computer has it.
+                own = src_root / src_rel
+                if own.is_file() and str(own.resolve()) not in doc.paths:
+                    doc.paths.append(str(own.resolve()))
+            target = self.copy_path(sha, doc)
+            src_copy = copies.get(sha)
+            if not target.is_file() and src_copy is not None and src_copy.is_file():
+                self.library_dir.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(src_copy), str(target))
+                self._copies = None
+            if target.is_file():
+                doc.copy = self.in_folder(target) or ""
+            self.save(doc)
+            count += 1
+        if src_removed.is_dir():
+            for d in sorted(src_removed.iterdir()):
+                dest = self.removed_dir / d.name
+                if not dest.exists():
+                    self.removed_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.move(str(d), str(dest))
+        return count
+
+    def _leave_note(self, folder: Path, moved_ann: Path) -> None:
+        note = (
+            f"Dogear moved this library to {self.root} on {now_iso()}.\n"
+            f"The notes files as they were before the move are kept in {moved_ann.name}/.\n"
+        )
+        try:
+            atomic_write_text(folder / "MOVED.txt", note)
+        except OSError:
+            pass
+
+    def migrate_old_layout(self, old: Path) -> int:
+        """Move a library from Dogear's first layout, where everything lived
+        in $XDG_DATA_HOME/dogear, into the library folder. The old notes
+        files are kept, renamed, next to a MOVED.txt. Returns how many
+        documents came over."""
+        src_ann = old / "annotations"
+        if not src_ann.is_dir() or src_ann.resolve() == self.ann_dir.resolve():
+            return 0
+        copies = {f.stem: f for f in (old / "library").glob("*.pdf") if _SHA.fullmatch(f.stem)}
+        count = self._absorb(src_ann, copies, None, old / "removed")
+        moved = old / f"annotations.moved-{int(time.time())}"
+        os.replace(src_ann, moved)
+        for leftover in (old / "library", old / "removed"):
+            try:
+                leftover.rmdir()  # only when empty
+            except OSError:
+                pass
+        self._leave_note(old, moved)
+        log.info("Moved %d document(s) from %s to %s", count, old, self.root)
+        return count
+
+    def move_to(self, new_root: Path) -> int:
+        """Move the library to another folder and use it from now on. A
+        library already there (say, synced from another computer) is merged
+        with this one. Your own PDFs elsewhere in the old folder stay where
+        they are. Returns how many documents came over."""
+        new_root = new_root.expanduser()
+        if new_root.resolve() == self.root.resolve():
+            return 0
+        old_root, old_ann, old_meta, old_library = self.root, self.ann_dir, self.meta_dir, self.library_dir
+        old_removed = self.removed_dir
+        copies = {}
+        for doc in self.documents():
+            p = self.copy_path(doc.sha256, doc)
+            if p.is_file() and p.parent.resolve() == old_library.resolve():
+                copies[doc.sha256] = p
+        cats = self._listed_categories()
+        self._set_root(new_root)
+        self.ann_dir.mkdir(parents=True, exist_ok=True)
+        if cats:
+            self._write_categories(self._listed_categories() + cats)
+        count = self._absorb(old_ann, copies, old_root, old_removed) if old_ann.is_dir() else 0
+        if old_ann.is_dir():
+            moved = old_meta / f"annotations.moved-{int(time.time())}"
+            os.replace(old_ann, moved)
+            self._leave_note(old_meta, moved)
+        log.info("Moved the library (%d document(s)) from %s to %s", count, old_root, self.root)
+        return count
 
     # -- recents
     def recents(self) -> list[RecentFile]:

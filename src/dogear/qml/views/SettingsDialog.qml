@@ -9,19 +9,73 @@ DgDialog {
     title: "Settings"
 
     onOpened: {
+        libraryField.text = App.libraryFolderIsDefault ? "" : App.libraryFolder
+        libraryError.text = ""
         field.text = App.exportDirIsDefault ? "" : App.exportDir
         keepCopies.checked = App.keepCopies
         copiesSize.text = "Copies use " + App.copiesSize() + " in " + App.libraryDir + "."
-        field.forceActiveFocus()
+        libraryField.forceActiveFocus()
     }
 
     function save() {
+        // Moving the library first: the export folder's default lives in it.
+        const error = App.setLibraryFolder(libraryField.text)
+        if (error) {
+            libraryError.text = error
+            return
+        }
         App.setExportDir(field.text)
         App.setKeepCopies(keepCopies.checked)
         close()
     }
 
     DgText {
+        text: "Library folder"
+        font.weight: Font.DemiBold
+    }
+    DgText {
+        Layout.fillWidth: true
+        text: "Your notes, categories and copies of the PDFs live here. To have the same library on several "
+            + "computers, pick a folder you sync with Syncthing, Dropbox, Google Drive or the like."
+        secondary: true
+        role: "small"
+        wrapMode: Text.WordWrap
+        elide: Text.ElideNone
+    }
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: Theme.spaceLg
+        DgTextField {
+            id: libraryField
+            objectName: "libraryFolderField"
+            Layout.fillWidth: true
+            placeholderText: App.libraryFolderIsDefault ? App.libraryFolder : "Default folder"
+            Keys.onReturnPressed: dialog.save()
+            Keys.onEnterPressed: dialog.save()
+        }
+        DgButton { text: "Choose…"; onClicked: libraryDialog.open() }
+    }
+    DgText {
+        Layout.fillWidth: true
+        text: "Leave empty for the default. Changing it moves your library there; a Dogear library "
+            + "already in that folder (from another computer) is merged with this one."
+        muted: true
+        role: "caption"
+        wrapMode: Text.WordWrap
+        elide: Text.ElideNone
+    }
+    DgText {
+        id: libraryError
+        Layout.fillWidth: true
+        visible: text.length > 0
+        color: Theme.danger
+        role: "small"
+        wrapMode: Text.WordWrap
+        elide: Text.ElideNone
+    }
+
+    DgText {
+        Layout.topMargin: Theme.spaceLg
         text: "Markdown export folder"
         font.weight: Font.DemiBold
     }
@@ -47,7 +101,7 @@ DgDialog {
     }
     DgText {
         Layout.fillWidth: true
-        text: "Leave empty for the default. Annotations are stored in " + App.dataDir + " (your PDFs are never modified)."
+        text: "Leave empty for the Notes folder in your library folder. Your PDFs are never modified."
         muted: true
         role: "caption"
         wrapMode: Text.WordWrap
@@ -80,6 +134,11 @@ DgDialog {
         elide: Text.ElideNone
     }
 
+    FolderDialog {
+        id: libraryDialog
+        title: "Library folder"
+        onAccepted: libraryField.text = decodeURIComponent(selectedFolder.toString().replace(/^file:\/\//, ""))
+    }
     FolderDialog {
         id: folderDialog
         title: "Markdown export folder"

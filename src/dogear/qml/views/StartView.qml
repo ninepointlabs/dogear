@@ -48,8 +48,8 @@ FocusScope {
         if (!confirm || !row) return
         const marks = row.marks ? row.marks + " mark" + (row.marks > 1 ? "s" : "") : "no marks"
         confirm.ask("Remove “" + row.title + "” from the library?",
-            "Its " + marks + (row.copy ? " and Dogear's copy of the PDF" : "") + " go to a removed folder in "
-            + App.dataDir + ", where you can get them back. The PDF itself"
+            "Its " + marks + (row.copy ? " and Dogear's copy of the PDF" : "") + " go to "
+            + App.removedDir + ", where you can get them back. The PDF itself"
             + (row.original ? " (" + row.folder + "/" + row.fileName + ")" : "") + " is not touched.",
             "Remove", () => {
                 const at = list.currentIndex

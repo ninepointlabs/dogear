@@ -40,6 +40,8 @@ stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 
 - **About dialog** (added after v0.1): from the library header, Settings and the shortcuts list (`?`). It shows version, Nine Point Labs, created October 2026, MIT License with the full text, support email (Email opens your mail app with version details filled in; Copy copies it), privacy (no telemetry, no network) and Qt/PySide6/Python versions, plus "Copy version details". The bundled license copy is tested against `LICENSE`.
 
+- **Website** (added after v0.1): `docs/` is the site for dogear.ninepointlabs.com (GitHub Pages from `main`, `/docs`, with `docs/CNAME`). Its screenshots and the narrated demo video (`docs/media/dogear-demo.mp4`, 1:37) are made from the real app by `tools/demo/make_media.py`: it prints original demo handouts to PDF with headless Chromium, drives Dogear offscreen in real time with real mouse, wheel and key events (`tools/demo/record.py`), and narrates with ElevenLabs (George, `tools/demo/narration.json`, key from `~/.config/elevenlabs/api_key`, cached per line in `tools/demo/work/tts`). It runs with a scratch home, library and theme in `tools/demo/work/` (git-ignored), so your own library and theme are untouched.
+
 ## What doesn't (yet)
 
 - **Highlights can't cross pages.** A drag that leaves the page selects to the end of the starting page. Highlight each page separately.

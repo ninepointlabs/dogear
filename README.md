@@ -1,6 +1,7 @@
 # Dogear
 
-**Read, highlight and remember your PDFs.**
+**Read, highlight and remember your PDFs.** · [dogear.ninepointlabs.com](https://dogear.ninepointlabs.com),
+with a narrated demo video
 
 Dogear is a PDF reader for studying, built for [Omarchy](https://omarchy.org). It does
 what you'd do to a paper textbook: highlight in several colors, write notes next to

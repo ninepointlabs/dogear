@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<!-- The video's title and end cards and its captions, in the site's type
+     and colours. make_media.py renders it with headless Chromium at
+     1920×1080: card.html#title, #end, or #caption=Text (transparent). -->
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Literata:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; }
+  body { font-family: 'Literata', serif; color: #f4f1e8; }
+  body.card {
+    background:
+      radial-gradient(ellipse 60% 55% at 50% 40%, rgba(245, 213, 71, 0.10), transparent 70%),
+      radial-gradient(ellipse 50% 40% at 100% 100%, rgba(143, 176, 255, 0.08), transparent 60%),
+      #0f121a;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  }
+  body.caption { background: transparent; }
+  .mark { width: 190px; height: 190px; margin-bottom: 40px; filter: drop-shadow(0 18px 50px rgba(0,0,0,0.5)); }
+  .word { font-family: 'Fraunces', serif; font-weight: 600; font-size: 128px; letter-spacing: 0.01em; margin: 0 0 14px; }
+  .tag { font-size: 46px; font-style: italic; color: #a9afbd; margin: 0; }
+  .tag mark { background: linear-gradient(transparent 55%, rgba(245, 213, 71, 0.55) 55%); color: #f4f1e8; padding: 0 6px; }
+  .end .word { font-size: 92px; margin-bottom: 8px; }
+  .end .mark { width: 130px; height: 130px; margin-bottom: 28px; }
+  .url { font-family: 'Fraunces', serif; font-weight: 600; font-size: 58px; color: #f5d547; margin: 26px 0 40px; }
+  .small { font-size: 30px; color: #6b7386; margin-top: 8px; }
+  .lower { position: absolute; left: 72px; bottom: 96px; display: flex; align-items: center; gap: 20px;
+           background: rgba(15, 18, 26, 0.9); border: 1px solid #384056; border-left: 5px solid #f5d547;
+           padding: 14px 32px 16px 22px; border-radius: 4px; box-shadow: 0 10px 40px rgba(0,0,0,0.45); }
+  .lower svg { width: 40px; height: 40px; }
+  .lower span { font-family: 'Fraunces', serif; font-weight: 600; font-size: 36px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><symbol id="icon" viewBox="0 0 128 128">
+  <rect x="8" y="8" width="112" height="112" rx="20" fill="#1d2230"/>
+  <path d="M34 22 H78 L98 42 V106 H34 Z" fill="#f4f1e8"/>
+  <path d="M78 22 V42 H98 Z" fill="#c9c2ad"/>
+  <rect x="44" y="54" width="44" height="9" rx="2" fill="#f5d547"/>
+  <rect x="44" y="70" width="44" height="4" rx="2" fill="#9aa0ad"/>
+  <rect x="44" y="80" width="36" height="4" rx="2" fill="#9aa0ad"/>
+  <rect x="44" y="90" width="40" height="4" rx="2" fill="#9aa0ad"/>
+</symbol></svg>
+
+<div id="title" hidden>
+  <svg class="mark"><use href="#icon"/></svg>
+  <p class="word">Dogear</p>
+  <p class="tag">Read, <mark>highlight</mark> and remember your PDFs</p>
+</div>
+
+<div id="end" class="end" hidden>
+  <svg class="mark"><use href="#icon"/></svg>
+  <p class="word">Dogear</p>
+  <p class="tag">Free and open source · made for Omarchy</p>
+  <p class="url">dogear.ninepointlabs.com</p>
+  <p class="small">by Nine Point Labs</p>
+</div>
+
+<div id="caption" class="lower" hidden>
+  <svg><use href="#icon"/></svg><span></span>
+</div>
+
+<script>
+  const [kind, text] = decodeURIComponent(location.hash.slice(1)).split('=');
+  document.body.className = kind === 'caption' ? 'caption' : 'card';
+  const el = document.getElementById(kind);
+  el.hidden = false;
+  if (kind === 'caption') el.querySelector('span').textContent = text;
+</script>
+</body>
+</html>

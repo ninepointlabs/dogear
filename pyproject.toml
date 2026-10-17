@@ -15,6 +15,10 @@ requires-python = ">=3.12"
 # official `pyside6` package, which pip cannot see. No other runtime deps.
 dependencies = []
 
+[project.urls]
+Homepage = "https://dogear.ninepointlabs.com"
+Source = "https://github.com/ninepointlabs/dogear"
+
 [project.scripts]
 dogear = "dogear.__main__:main"
 

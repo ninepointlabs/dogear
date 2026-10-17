@@ -1,0 +1,21 @@
+# The palette of dogear.ninepointlabs.com, as an Omarchy theme, so the
+# screenshots and the video match the site. make_media.py points the app at
+# it (DOGEAR_THEME_DIR); your own theme is untouched.
+mode = "dark"
+accent = "#F5D547"
+selection = "#3B3720"
+muted = "#6B7386"
+background = "#0F121A"
+dark_background = "#0B0D13"
+lighter_background = "#171B26"
+foreground = "#F4F1E8"
+dark_foreground = "#A9AFBD"
+light_foreground = "#DCD8CC"
+bright_foreground = "#FFFDF6"
+red = "#E06C6C"
+yellow = "#F5D547"
+orange = "#E9A65A"
+green = "#8CC08A"
+cyan = "#6FB7C4"
+blue = "#8FB0FF"
+magenta = "#C79AE0"

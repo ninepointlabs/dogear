@@ -1,0 +1,27 @@
+{
+ "voice": "JBFqnCBsd6RMkjVDRZzb",
+ "voice_name": "George (ElevenLabs premade)",
+ "model": "eleven_multilingual_v2",
+ "segments": [
+  {"clip": "01-title", "card": "title",
+   "text": "This is Dogear. A PDF reader for studying, made for Omarchy."},
+  {"clip": "02-library", "caption": "Your library",
+   "text": "Every PDF you open goes into your library. Sort it, search it, and file each one under a category, one for every class."},
+  {"clip": "03-read", "caption": "Reading",
+   "text": "Reading is quiet and quick. Scroll with the wheel, or with J and K. Dogear remembers where you stopped, in every file."},
+  {"clip": "04-highlight", "caption": "Highlights and notes",
+   "text": "Select a passage and press a number to highlight it, in one of five colors. Click a highlight to add a note, and hover over it later to read the note again."},
+  {"clip": "05-answers", "caption": "Answer lines",
+   "text": "Worksheets have blanks. Just click one and type. There's no text box to place: Dogear finds the answer lines on the page, and Tab takes you to the next one."},
+  {"clip": "06-sidebar", "caption": "Outline, bookmarks, search",
+   "text": "The sidebar holds the outline, your highlights, bookmarks and notes. Press B to bookmark a page, and slash to search the whole document."},
+  {"clip": "07-export", "caption": "Markdown export",
+   "text": "When it's time to review, export it all to Markdown."},
+  {"clip": "07b-markdown", "card": "export",
+   "text": "Your highlights and notes come out page by page, with each answer under its question, ready for Obsidian."},
+  {"clip": "08-library", "caption": "One folder, every computer", "fade_in": true,
+   "text": "Search the library, and it finds words inside your notes too. Everything lives in one folder: point Dogear at a folder you sync, with Syncthing, Dropbox or Google Drive, and every computer has the same library."},
+  {"clip": "09-end", "card": "end",
+   "text": "Dogear is free and open source, from Nine Point Labs. Get it at dogear dot ninepointlabs dot com."}
+ ]
+}

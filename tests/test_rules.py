@@ -221,12 +221,13 @@ class TestContext(unittest.TestCase):
         # "1. The pigment … green is ______, and it absorbs mostly
         #  ______ and ______ light." with the blanks drawn as lines: the
         # text has no characters for them, and the second line starts with one.
+        # The comma after the first blank starts right at its end.
         lines = [
             {"text": "1. The pigment is , and it absorbs mostly", "rect": [97, 126, 300, 11]},
             {"text": "and light.", "rect": [218, 152, 160, 11]},
             {"text": "2. Next question", "rect": [97, 195, 200, 11]},
         ]
-        rules = [{"x": 190.0, "y": 134.0, "w": 20.0}, {"x": 108.0, "y": 160.0, "w": 100.0},
+        rules = [{"x": 190.0, "y": 134.0, "w": 24.0}, {"x": 108.0, "y": 160.0, "w": 100.0},
                  {"x": 241.5, "y": 160.0, "w": 100.0}]
 
         def char_lefts(i):

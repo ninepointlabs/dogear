@@ -379,8 +379,10 @@ def context_for(
             return text
         xs = char_lefts(i)
         for blank in reversed(drawn):
-            if any(blank["x"] < cx < blank["x"] + blank["w"] - 1 for cx in xs):
-                continue  # characters there: not a gap in the text
+            # Characters well inside it: not a gap in the text. (The word
+            # after a blank can start right at its end.)
+            if any(blank["x"] + 2 < cx < blank["x"] + blank["w"] - 2 for cx in xs):
+                continue
             k = sum(1 for cx in xs if cx < blank["x"])
             text = text[:k] + " ___ " + text[k:]
         return text

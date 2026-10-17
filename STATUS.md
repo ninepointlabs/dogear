@@ -14,11 +14,12 @@ Needs only Arch's `pyside6` package, which is already installed on this machine
 
 ## What works (verified)
 
-Verified by `PYTHONPATH=src python3 -m unittest discover -s tests` (89 tests, all pass,
+Verified by `PYTHONPATH=src python3 -m unittest discover -s tests` (92 tests, all pass,
 stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 
 - Open from the CLI argument, `Ctrl+O` file dialog, drag and drop, and the library.
 - **Library** (added after v0.1). The start screen (and `Ctrl+L`) lists every PDF ever opened, with counts of marks and last opened. It's searchable by title, folder, category and the text inside your highlights, notes, answers and bookmarks. It sorts by Recent, Title, Most marked or Added. Categories can be created, renamed (renaming onto an existing name merges), deleted and ticked per document (`c`), with a filter for each category and Uncategorized. Categories are exported as tags.
+- **Rename and remove documents** in the library (`F2`/`Del` or the row's buttons). A name is Dogear's own label: the file isn't renamed and the PDF's title still shows and is searchable. Removing asks first and moves the marks and the copy to `~/.local/share/dogear/removed/` instead of deleting them.
 - **Private copies** (on by default, Settings toggle with disk use shown). Marked-up PDFs are copied into `~/.local/share/dogear/library/`. When the original is gone, the library opens the copy and says so. PDFs marked up earlier are copied a few seconds after start.
 - **Other copies of a book.** Opening an unmarked PDF that matches a marked-up one (same PDF ID, or same name apart from versions and dates, with page counts within about 5%) offers to bring the marks over. Checked on the real Ruhi Book 3 editions 2.1.1 → 2.2.1, which have different IDs and the same page count.
 - Remembers page, scroll offset, zoom and fit-width per file. The smoke test closes and reopens a file and checks the page and zoom.
@@ -52,7 +53,6 @@ stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 - **Answers don't appear in the sidebar or in search.** They're on the page and in the export.
 - **`Ctrl+-` isn't covered by the automated test.** The offscreen test platform doesn't deliver that key, so the test uses `Ctrl+=` and checks the A− button by hand. The key itself is untested.
 - **The detector can be fooled.** A long horizontal rule with empty space above it, such as a separator under a heading, also counts as an answer line. A click there opens an empty answer, which disappears again when you click elsewhere.
-- **Documents can't be removed from the library yet.** Everything ever opened stays listed. A "remove from library" (deleting its marks and copy, with confirmation) is the natural next step.
 - **Brought-over marks aren't realigned.** They keep their page and position. If a new edition moved text, they sit off and need redoing.
 - **Only one matching copy is offered**, the one with the most marks. Marks from two older copies can't be merged in one go.
 - **Library search reads every annotation file on each keystroke.** That's instant for dozens of documents. With hundreds it may need an index.

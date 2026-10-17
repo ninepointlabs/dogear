@@ -92,8 +92,8 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 In the sidebar lists: `↑` `↓` to move, `Enter` to jump. In Highlights, `e` edits the note
 and `Del` deletes. In Bookmarks, `r`/`F2` renames and `Del` deletes.
 
-In the library: `/` searches, `s` changes the sort order, `c` sets a document's
-categories, `n` makes a new category, `←` `→` move between categories and documents, and
+In the library: `/` searches, `s` changes the sort order, `F2` renames a document, `Del`
+removes it, `c` sets its categories, `n` makes a new category, `←` `→` move between categories and documents, and
 in the category list `F2` renames and `Del` deletes a category.
 
 ## Answer lines
@@ -132,6 +132,17 @@ with how many highlights, notes, answers and bookmarks it has and when you last 
   only its documents, or *Uncategorized* for the ones not filed yet. Renaming a category
   onto an existing name merges the two. Deleting one leaves its documents in the library.
   Categories are exported as Obsidian tags.
+
+- **Rename** a document (`F2`, or the Rename button on the row) to call it something
+  you'll recognize, such as "Book 3: Children's Classes" instead of
+  `RUHI0110_CC1_BK3_EN_2.2.1.PE_FullText_20210930`. The name is Dogear's only. The file
+  isn't renamed, the PDF's own title still shows underneath and is searchable, and the
+  name is used for the window title and the export heading. Clear the name to go back.
+- **Remove** a document (`Del`, or Remove) to take it out of the library, after you
+  confirm. Its marks and Dogear's copy aren't deleted outright: they move to
+  `~/.local/share/dogear/removed/<sha256>-<time>/`. To restore, move the `.json` back
+  into `annotations/` and the `.pdf` into `library/`. The PDF itself is never touched.
+  Opening it again later starts fresh.
 
 **Your marks always have their PDF.** Dogear never changes your PDFs, and it keeps a
 private copy of every PDF you mark up in `~/.local/share/dogear/library/` (Settings →
@@ -268,7 +279,8 @@ Annotation file format (`"dogear": 1` is the schema version):
   "opened": 1792245000.0,
   "page_count": 204,
   "pdf_id": "4216DE69CFB8A749BFB2482F35376307",
-  "declined": []
+  "declined": [],
+  "label": "Book 3: Children's Classes"
 }
 ```
 
@@ -279,6 +291,7 @@ For an answer, `x`/`y`/`w` are the left end, height and length of its line, and
 `pitch` and `lines` describe ruled lines below it (`pitch` 0 means a single line).
 `page_count`, `pdf_id` (the PDF's own document ID) and the title are what recognize
 other copies of the same book. `declined` lists copies you said not to take marks from.
+`label` is your own name for the document (empty: use its title).
 Colors are `yellow`, `green`, `blue`, `pink` and `purple`. On screen they use the Omarchy
 theme's matching colors when those are bright enough to read on paper, and classic
 highlighter colors otherwise.

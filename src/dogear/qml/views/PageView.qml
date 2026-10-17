@@ -150,8 +150,8 @@ Item {
     // Mouse-wheel scrolling glides to its target. Successive notches add to
     // the target, so a fast spin keeps accelerating instead of stuttering,
     // and notches in quick succession go further each (up to wheelMaxBoost).
-    readonly property real wheelStep: Theme.fontBody * 18
-    readonly property real wheelMaxBoost: 2.5
+    readonly property real wheelStep: Theme.fontBody * 26
+    readonly property real wheelMaxBoost: 3
     property real wheelBoost: 1
     property double lastWheel: 0
     function wheelNotches(notches) {
@@ -396,7 +396,7 @@ Item {
         const ctrl = event.modifiers & Qt.ControlModifier
         const shift = event.modifiers & Qt.ShiftModifier
         const alt = event.modifiers & Qt.AltModifier
-        const step = Theme.fontBody * 7
+        const step = Theme.fontBody * 9
         const t = event.text
         let handled = true
         if (alt && event.key === Qt.Key_Left) { view.back() }

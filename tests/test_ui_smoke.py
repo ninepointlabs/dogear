@@ -243,14 +243,36 @@ class UiSmokeTest(unittest.TestCase):
         self.type_text("red")
         self.key(Qt.Key.Key_Return)  # a single blank: Enter moves on
         self.type_text("blue")
-        # Ctrl+= grows the answer's text, not the page. (Ctrl+- can't be
-        # sent through the offscreen platform's keymap, so it isn't tested.)
+        # Ctrl+= grows the answer's text, not the page.
         zoom_before = self.page_view().property("zoom")
         size_before = self.doc.answersOnPage(5)[-1]["size"]
         self.key(Qt.Key.Key_Equal, Qt.KeyboardModifier.ControlModifier)
         self.key(Qt.Key.Key_Equal, Qt.KeyboardModifier.ControlModifier)
         self.assertEqual(self.page_view().property("zoom"), zoom_before)
         self.assertGreater(self.doc.answersOnPage(5)[-1]["size"], size_before)
+        # Text too long for its line is squeezed to fit: Ctrl+= then can't
+        # grow it, and Ctrl+- shrinks it at once from the size shown. (Ctrl+-
+        # goes in as a raw event: QTest can't map it on offscreen.)
+        from PySide6.QtCore import QEvent
+        from PySide6.QtGui import QKeyEvent
+        editor = self.page_view().property("activeAnswer")
+        size = editor.property("size")
+        for words in range(2, 40):  # just too long, but not wrapping
+            editor.setProperty("text", "blue " * words)
+            self.wait(20)
+            if editor.property("shownSize") < size * 0.85:
+                break
+        squeezed = editor.property("shownSize")
+        self.assertLess(squeezed, size - 1)
+        self.key(Qt.Key.Key_Equal, Qt.KeyboardModifier.ControlModifier)
+        self.assertEqual(editor.property("size"), size)
+        for kind in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+            QGuiApplication.sendEvent(self.window, QKeyEvent(kind, Qt.Key.Key_Minus, Qt.KeyboardModifier.ControlModifier, "-"))
+        self.wait()
+        self.assertAlmostEqual(editor.property("shownSize"), squeezed / 1.1, delta=0.3)
+        editor.setProperty("text", "blue")
+        editor.setProperty("cursorPosition", 4)
+        self.wait()
         self.type_text("!")  # still typing in the same answer
         self.key(Qt.Key.Key_Escape)
         answers = [a for p in range(6) for a in self.doc.answersOnPage(p)]

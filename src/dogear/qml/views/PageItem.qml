@@ -284,8 +284,15 @@ Item {
             // Text size in points; Ctrl+= / Ctrl+- or the A− A+ buttons change it.
             property real size: modelData.size
             readonly property real basePx: size * page.s
+            // A single line already squeezed to fit shows smaller than its
+            // size: step from the size shown, so A− shrinks at once and A+
+            // doesn't grow a size that can't be seen.
+            readonly property real shownSize: fitPx / page.s
             function resize(step) {
-                const next = Math.round(Math.max(4, Math.min(36, step > 0 ? size * 1.1 : size / 1.1)) * 2) / 2
+                const squeezed = shownSize < size - 0.25
+                if (step > 0 && squeezed) return
+                const from = squeezed ? shownSize : size
+                const next = Math.round(Math.max(4, Math.min(36, step > 0 ? from * 1.1 : from / 1.1)) * 2) / 2
                 if (next === size) return
                 size = next
                 Doc.setAnswerSize(modelData.id, next)

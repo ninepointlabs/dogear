@@ -18,7 +18,7 @@ DgDialog {
             ["+ -  Ctrl+wheel", "Zoom"], ["0  Ctrl+0", "Fit width"], ["Alt+←  Backspace", "Back after a jump"]] },
         { name: "Annotate", keys: [
             ["drag", "Select text (double-click: word)"], ["1–5", "Highlight selection in a color"],
-            ["a", "Highlight and add a note"], ["Ctrl+C", "Copy selection"], ["click highlight", "Color, note, delete"],
+            ["a", "Highlight and add a note"], ["Ctrl+C", "Copy selection"], ["click highlight", "Color, note, delete"], ["hover highlight", "Show its note"],
             ["b  Ctrl+D", "Bookmark this page"], ["Ctrl+N", "New document note"]] },
         { name: "Find and panels", keys: [
             ["/  Ctrl+F", "Search"], ["Enter  n", "Next match"], ["Shift+Enter  N", "Previous match"],

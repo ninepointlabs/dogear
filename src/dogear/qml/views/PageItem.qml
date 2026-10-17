@@ -45,6 +45,9 @@ Item {
     function inRect(p, r, pad) {
         return p.x >= r[0] - pad && p.x <= r[0] + r[2] + pad && p.y >= r[1] - pad && p.y <= r[1] + r[3] + pad
     }
+    function highlightById(hid) {
+        return highlights.find(h => h.id === hid) || null
+    }
     function highlightAt(p) {
         // Last drawn wins, matching what is on top visually.
         for (let i = highlights.length - 1; i >= 0; i--)
@@ -168,7 +171,9 @@ Item {
         property var start: null
         property bool dragging: false
 
+        onExited: page.pageView.hoverHighlight(null)
         onPressed: m => {
+            page.pageView.hideNoteTip()
             page.pageView.forceActiveFocus(Qt.MouseFocusReason)
             start = page.toPt(m.x, m.y)
             dragging = false
@@ -176,7 +181,10 @@ Item {
         onPositionChanged: m => {
             const p = page.toPt(m.x, m.y)
             if (!pressed) {
-                cursorShape = page.highlightAt(p) || page.linkAt(p) ? Qt.PointingHandCursor : Qt.IBeamCursor
+                const hid = page.highlightAt(p)
+                cursorShape = hid || page.linkAt(p) ? Qt.PointingHandCursor : Qt.IBeamCursor
+                const v = mapToItem(page.pageView, m.x, m.y)
+                page.pageView.hoverHighlight(page.highlightById(hid), v.x, v.y)
                 return
             }
             if (!(m.buttons & Qt.LeftButton) || !start) return
@@ -247,6 +255,11 @@ Item {
                 anchors.margins: -3
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                onEntered: {
+                    const v = mapToItem(page.pageView, width / 2, height / 2)
+                    page.pageView.hoverHighlight(parent.modelData, v.x, v.y)
+                }
+                onExited: page.pageView.hoverHighlight(null)
                 onClicked: page.pageView.openHighlight(parent.modelData.id, true)
             }
         }

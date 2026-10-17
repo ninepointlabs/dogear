@@ -105,6 +105,7 @@ FocusScope {
 
     function restoreAnchor(a) {
         if (!tops.length) return
+        stopSmooth()
         const p = Math.max(0, Math.min(tops.length - 1, a.page))
         flick.contentY = clampY(tops[p] + a.offset * pageH(p))
         flick.contentX = maxContentX() * Math.max(0, Math.min(1, a.x))
@@ -142,7 +143,41 @@ FocusScope {
         currentPage = pageAt(flick.contentY + flick.height * 0.3)
     }
 
-    function scrollBy(dy) { flick.contentY = clampY(flick.contentY + dy) }
+    function scrollBy(dy) { stopSmooth(); flick.contentY = clampY(flick.contentY + dy) }
+
+    // Mouse-wheel scrolling glides to its target. Successive notches add to
+    // the target, so a fast spin keeps accelerating instead of stuttering.
+    readonly property real wheelStep: Theme.fontBody * 12
+    property real smoothTarget: 0
+    function smoothScrollBy(dy) {
+        const base = smoothY.running ? smoothTarget : flick.contentY
+        smoothTarget = clampY(base + dy)
+        smoothY.stop()
+        smoothY.from = flick.contentY
+        smoothY.to = smoothTarget
+        smoothY.start()
+    }
+    function stopSmooth() { if (smoothY.running) smoothY.stop() }
+
+    // Hover tooltip showing a highlight's note. `tip` is the shown one,
+    // `pendingTip` waits out a short delay so sweeping across text doesn't flash.
+    property var tip: null          // {id, note, color, x, y} in view coordinates
+    property var pendingTip: null
+    readonly property bool noteTipVisible: tip !== null && noteTip.visible
+    function hoverHighlight(hl, x, y) {
+        if (!hl || !hl.note || selecting) { hideNoteTip(); return }
+        if (tip && tip.id === hl.id) return
+        pendingTip = { id: hl.id, note: hl.note, color: hl.color, x: x, y: y }
+        if (tip) { tip = pendingTip; pendingTip = null }
+        else tipTimer.restart()
+    }
+    // Content moving under a still mouse makes the tip point at the wrong text.
+    function hideNoteTipIfMoved() { if (tip || pendingTip) hideNoteTip() }
+    function hideNoteTip() {
+        tipTimer.stop()
+        pendingTip = null
+        tip = null
+    }
     function scrollXBy(dx) { flick.contentX = Math.max(0, Math.min(maxContentX(), flick.contentX + dx)) }
 
     function pushHistory() {
@@ -162,6 +197,7 @@ FocusScope {
     // Jump to a page, optionally to a y position (PDF points) within it.
     function goToPage(p, yPt, remember) {
         if (!tops.length) return
+        stopSmooth()
         if (remember) pushHistory()
         p = Math.max(0, Math.min(tops.length - 1, p))
         if (yPt === undefined || yPt <= 0)
@@ -229,6 +265,7 @@ FocusScope {
     }
 
     function openHighlight(hid, editNote) {
+        hideNoteTip()
         const hl = Doc.highlight(hid)
         if (!hl.id) return
         const r = hl.rects[hl.rects.length - 1] || [0, 0, 0, 0]
@@ -258,6 +295,18 @@ FocusScope {
 
     onWidthChanged: if (ready && fitWidth) zoomFit()
 
+    Timer {
+        id: tipTimer
+        interval: 150
+        onTriggered: { view.tip = view.pendingTip; view.pendingTip = null }
+    }
+    NumberAnimation {
+        id: smoothY
+        target: flick
+        property: "contentY"
+        duration: 220
+        easing.type: Easing.OutCubic
+    }
     Timer {
         id: renderTimer
         interval: 180
@@ -339,8 +388,32 @@ FocusScope {
             acceptedModifiers: Qt.ControlModifier
             onWheel: event => view.zoomBy(event.angleDelta.y > 0 ? 1.1 : 1 / 1.1)
         }
+        // Plain wheel: smooth steps for mouse wheels. Touchpads already
+        // scroll continuously (they report a scroll phase), so follow them 1:1.
+        WheelHandler {
+            target: null
+            acceptedModifiers: Qt.NoModifier
+            onWheel: event => {
+                view.hideNoteTip()
+                const touchpad = event.phase !== Qt.NoScrollPhase
+                    || (event.device && event.device.type === PointerDevice.TouchPad)
+                if (touchpad && (event.pixelDelta.x !== 0 || event.pixelDelta.y !== 0)) {
+                    view.scrollBy(-event.pixelDelta.y)
+                    view.scrollXBy(-event.pixelDelta.x)
+                    return
+                }
+                if (event.angleDelta.y !== 0) view.smoothScrollBy(-event.angleDelta.y / 120 * view.wheelStep)
+                if (event.angleDelta.x !== 0) view.scrollXBy(-event.angleDelta.x / 120 * view.wheelStep)
+            }
+        }
+        // Shift+wheel scrolls sideways when zoomed in.
+        WheelHandler {
+            target: null
+            acceptedModifiers: Qt.ShiftModifier
+            onWheel: event => view.scrollXBy(-(event.angleDelta.y || event.angleDelta.x) / 120 * view.wheelStep)
+        }
 
-        onContentYChanged: { view.updateCurrentPage(); if (view.ready) saveTimer.restart() }
+        onContentYChanged: { view.hideNoteTipIfMoved(); view.updateCurrentPage(); if (view.ready) saveTimer.restart() }
         onContentXChanged: if (view.ready) saveTimer.restart()
 
         Repeater {
@@ -395,6 +468,39 @@ FocusScope {
         }
     }
 
+
+    Rectangle {
+        id: noteTip
+        readonly property var t: view.tip
+        visible: t !== null && !view.selecting
+        z: 60
+        width: Math.min(tipText.implicitWidth, 28 * Theme.fontBody) + 2 * Theme.spaceXl + 4
+        height: tipText.height + 2 * Theme.spaceLg
+        x: t ? Math.max(Theme.spaceMd, Math.min(t.x + 14, view.width - width - Theme.spaceMd)) : 0
+        y: !t ? 0 : t.y + 22 + height < view.height - Theme.spaceMd ? t.y + 22 : Math.max(Theme.spaceMd, t.y - height - 10)
+        radius: Theme.radius
+        color: Theme.bgRaised
+        border.width: Theme.borderWidth
+        border.color: Theme.focusRing
+
+        Rectangle {
+            x: 0
+            width: 4
+            height: parent.height
+            radius: Theme.radius
+            color: noteTip.t ? Theme.highlights[noteTip.t.color] : "transparent"
+        }
+        DgText {
+            id: tipText
+            x: Theme.spaceXl + 4
+            y: Theme.spaceLg
+            width: Math.min(implicitWidth, 28 * Theme.fontBody)
+            text: noteTip.t ? noteTip.t.note : ""
+            wrapMode: Text.Wrap
+            elide: Text.ElideRight
+            maximumLineCount: 14
+        }
+    }
 
     DgText {
         anchors.centerIn: parent

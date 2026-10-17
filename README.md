@@ -53,7 +53,8 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 | `Ctrl+,` | Settings (export folder) |
 | `Ctrl+Q` | Quit |
 | `F1`, `?` | Keyboard shortcuts |
-| `j` `k`, `↓` `↑` | Scroll |
+| `j` `k`, `↓` `↑`, mouse wheel | Scroll (the wheel scrolls smoothly; touchpads follow your fingers) |
+| `Shift`+wheel | Scroll sideways |
 | `h` `l`, `←` `→` | Scroll sideways (when zoomed in) |
 | `Space`, `Shift+Space`, `PgDn`, `PgUp` | Down or up one screen |
 | `J` `K` | Next or previous page |
@@ -66,6 +67,7 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 | `1`–`5` | Highlight the selection (yellow, green, blue, pink, purple) |
 | `a` | Highlight the selection in the last used color and write a note |
 | `Ctrl+C` | Copy the selection |
+| hover a highlight | Shows its note, if it has one (also when hovering its margin marker) |
 | click a highlight | Change color (`1`–`5`), edit note (`e`/`Enter`), copy (`c`), delete (`d`/`Del`) |
 | `b`, `Ctrl+D` | Bookmark the page (named after its table of contents entry) |
 | `Ctrl+N` | New document note |

@@ -18,6 +18,7 @@ os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 try:
     from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QGuiApplication, QWheelEvent
     from PySide6.QtPdf import QPdfDocument  # noqa: F401
     from PySide6.QtQuick import QQuickItem
     from PySide6.QtTest import QTest
@@ -141,6 +142,34 @@ class UiSmokeTest(unittest.TestCase):
         self.key(Qt.Key.Key_Escape)
         first = next(h for h in self.doc.highlights if h["text"].startswith("1.1"))
         self.assertEqual(first["color"], "pink")
+
+        # Hovering a highlight that has a note shows the note; moving off hides it.
+        QTest.mouseMove(self.window, self.pt_to_window(0, 150, 139))
+        self.wait(350)
+        self.assertTrue(self.page_view().property("noteTipVisible"))
+        QTest.mouseMove(self.window, self.pt_to_window(0, 150, 300))
+        self.wait(100)
+        self.assertFalse(self.page_view().property("noteTipVisible"))
+        # Hovering a highlight without a note shows nothing.
+        QTest.mouseMove(self.window, self.pt_to_window(0, 150, 99))
+        self.wait(350)
+        self.assertFalse(self.page_view().property("noteTipVisible"))
+
+        # One mouse-wheel notch glides down by one wheel step.
+        y0 = self.page_view().property("scrollY")
+        pos = QPointF(self.pt_to_window(0, 300, 300))
+        QGuiApplication.sendEvent(self.window, QWheelEvent(
+            pos, self.window.mapToGlobal(pos), QPoint(), QPoint(0, -120), Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False))
+        self.wait(40)
+        mid = self.page_view().property("scrollY")
+        self.wait(400)
+        step = self.page_view().property("wheelStep")
+        self.assertAlmostEqual(self.page_view().property("scrollY"), y0 + step, delta=1)
+        self.assertLess(mid, y0 + step - 1, "wheel scroll should animate, not jump")
+        self.page_view().forceActiveFocus()
+        QTest.keyClick(self.window, Qt.Key.Key_Home)
+        self.wait()
 
         # Next page (J), bookmark it with b + Enter (default name from the outline).
         self.page_view().forceActiveFocus()

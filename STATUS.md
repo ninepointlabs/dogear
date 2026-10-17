@@ -20,6 +20,8 @@ stable over 6 consecutive runs) and by a short run on the real Hyprland session.
 - Open from the CLI argument, `Ctrl+O` file dialog, drag and drop, and the recent files list on the start screen. The start screen marks missing files, and `Del` removes an entry.
 - Remembers page, scroll offset, zoom and fit-width per file. The smoke test closes and reopens a file and checks the page and zoom.
 - Text selection by drag, or double-click for a word. Five highlight colors (keys `1`–`5` or the floating bar). Click a highlight to recolor it, edit its note, copy or delete it.
+- Mouse-wheel scrolling glides smoothly. Touchpads scroll 1:1, and `Shift`+wheel scrolls sideways.
+- Hovering a highlight that has a note, or its margin marker, shows the note in a tooltip after a short delay.
 - Highlight notes appear in the Highlights sidebar and as markers in the page margin. General per-document notes are in the Notes sidebar.
 - Named bookmarks, defaulting to the page's table of contents entry. They have a sidebar panel and a dog-ear on the page corner. The PDF outline appears in the Contents panel, with the current section highlighted.
 - Incremental search with match count. Enter/`n` and Shift+Enter/`N` jump between matches, starting from the page you're reading.

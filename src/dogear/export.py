@@ -28,6 +28,16 @@ def _quote(text: str) -> str:
     return "\n".join(f"> {line}".rstrip() for line in lines)
 
 
+def _tags(categories: list[str]) -> list[str]:
+    """Library categories as Obsidian tags: 'Ruhi Book 5' -> ruhi-book-5."""
+    out = []
+    for name in categories:
+        tag = re.sub(r"[^\w/-]+", "-", name.strip().casefold()).strip("-")
+        if tag and not tag.isdigit() and tag not in out:
+            out.append(tag)
+    return out
+
+
 def _answer(text: str) -> str:
     """'**A:** text', keeping the answer's own line breaks."""
     lines = [line.rstrip() for line in text.strip().splitlines()]
@@ -72,7 +82,7 @@ def render_markdown(
         f"highlights: {len(doc.highlights)}",
         f"bookmarks: {len(doc.bookmarks)}",
         f"answers: {len(answers)}",
-        "tags: [dogear]",
+        f"tags: [{', '.join(['dogear', *_tags(doc.categories)])}]",
         "---",
         "",
         f"# {title}",

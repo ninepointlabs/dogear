@@ -52,6 +52,9 @@ def documents_dir() -> Path:
 @dataclass
 class Settings:
     export_dir: str = ""
+    # Keep a private copy of every PDF you mark up in the library folder,
+    # so your marks always have their PDF even if the original goes away.
+    keep_copies: bool = True
 
     def resolved_export_dir(self) -> Path:
         if self.export_dir.strip():
@@ -71,7 +74,10 @@ def load_settings(path: Path | None = None) -> Settings:
     if not isinstance(raw, dict):
         return Settings()
     export_dir = raw.get("export_dir", "")
-    return Settings(export_dir=export_dir if isinstance(export_dir, str) else "")
+    return Settings(
+        export_dir=export_dir if isinstance(export_dir, str) else "",
+        keep_copies=raw.get("keep_copies", True) is not False,
+    )
 
 
 def save_settings(settings: Settings, path: Path | None = None) -> None:

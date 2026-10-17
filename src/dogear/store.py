@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -83,6 +84,15 @@ def _int(value: Any, default: int = 0) -> int:
 
 def _str(value: Any, default: str = "") -> str:
     return value if isinstance(value, str) else default
+
+
+def _strings(value: Any) -> list[str]:
+    """A list of distinct non-empty strings, in order."""
+    out: list[str] = []
+    for v in value if isinstance(value, list) else []:
+        if isinstance(v, str) and v.strip() and v.strip() not in out:
+            out.append(v.strip())
+    return out
 
 
 @dataclass
@@ -314,6 +324,14 @@ class DocAnnotations:
     notes: list[Note] = field(default_factory=list)
     answers: list[Answer] = field(default_factory=list)
     carried_from: str = ""
+    # Library: categories the user filed it under, when it was first and
+    # last opened, and what identifies other copies of the same book.
+    categories: list[str] = field(default_factory=list)
+    added: str = ""
+    opened: float = 0.0  # unix time
+    page_count: int = 0
+    pdf_id: str = ""  # the PDF's permanent document ID (trailer /ID), hex
+    declined: list[str] = field(default_factory=list)  # copies not to offer marks from again
 
     # -- highlights
     def add_highlight(self, page: int, rects: list[Rect], text: str, color: str = DEFAULT_COLOR, note: str = "") -> Highlight:
@@ -433,6 +451,32 @@ class DocAnnotations:
     def is_empty(self) -> bool:
         return not (self.highlights or self.bookmarks or self.notes or self.answers)
 
+    def counts(self) -> dict[str, int]:
+        return {
+            "highlights": len(self.highlights),
+            "notes": len(self.notes) + sum(1 for h in self.highlights if h.note.strip()),
+            "bookmarks": len(self.bookmarks),
+            "answers": sum(1 for a in self.answers if a.text.strip()),
+        }
+
+    def adopt_marks(self, other: DocAnnotations) -> None:
+        """Take over another copy's highlights, notes, bookmarks, answers,
+        categories and reading position (as new items with new ids)."""
+        copy = DocAnnotations.from_dict(other.to_dict(), self.sha256)
+        for item in (*copy.highlights, *copy.bookmarks, *copy.notes, *copy.answers):
+            item.id = new_id()
+        self.highlights += copy.highlights
+        self.bookmarks += copy.bookmarks
+        self.notes += copy.notes
+        self.answers += copy.answers
+        self.highlights.sort(key=Highlight.sort_key)
+        self.bookmarks.sort(key=lambda b: (b.page, b.y))
+        self.answers.sort(key=Answer.sort_key)
+        self.categories = sorted(set(self.categories) | set(copy.categories), key=str.casefold)
+        if not self.view.page and not self.view.offset:
+            self.view = copy.view
+        self.carried_from = other.sha256
+
     # -- serialization
     def to_dict(self) -> dict:
         data = {
@@ -450,6 +494,14 @@ class DocAnnotations:
         }
         if self.carried_from:
             data["carried_from"] = self.carried_from
+        data.update({
+            "categories": self.categories,
+            "added": self.added,
+            "opened": round(self.opened, 3),
+            "page_count": self.page_count,
+            "pdf_id": self.pdf_id,
+            "declined": self.declined,
+        })
         return data
 
     @classmethod
@@ -469,6 +521,12 @@ class DocAnnotations:
             notes=[Note.from_dict(v) for v in items("notes")],
             answers=[a for a in (Answer.from_dict(v) for v in items("answers")) if a and a.text.strip()],
             carried_from=_str(raw.get("carried_from")),
+            categories=_strings(raw.get("categories")),
+            added=_str(raw.get("added")),
+            opened=max(0.0, _num(raw.get("opened"))),
+            page_count=max(0, _int(raw.get("page_count"))),
+            pdf_id=_str(raw.get("pdf_id")),
+            declined=_strings(raw.get("declined")),
         )
         doc.highlights.sort(key=Highlight.sort_key)
         doc.bookmarks.sort(key=lambda b: (b.page, b.y))
@@ -491,6 +549,7 @@ class AnnotationStore:
     def __init__(self, root: Path):
         self.root = root
         self.ann_dir = root / "annotations"
+        self.library_dir = root / "library"
         self.index_path = root / "index.json"
         self._index = self._load_index()
 
@@ -501,7 +560,12 @@ class AnnotationStore:
             raw = {}
         files = raw.get("files") if isinstance(raw.get("files"), dict) else {}
         recents = raw.get("recent") if isinstance(raw.get("recent"), list) else []
-        return {"dogear": SCHEMA_VERSION, "files": files, "recent": [r for r in recents if isinstance(r, dict)]}
+        return {
+            "dogear": SCHEMA_VERSION,
+            "files": files,
+            "recent": [r for r in recents if isinstance(r, dict)],
+            "categories": _strings(raw.get("categories")),
+        }
 
     def _save_index(self) -> None:
         atomic_write_text(self.index_path, json.dumps(self._index, indent=2, ensure_ascii=False) + "\n")
@@ -565,7 +629,9 @@ class AnnotationStore:
             json.dumps(doc.to_dict(), indent=2, ensure_ascii=False) + "\n",
         )
 
-    def open_document(self, path: Path, title: str = "") -> DocAnnotations:
+    def open_document(
+        self, path: Path, title: str = "", *, page_count: int = 0, pdf_id: str = ""
+    ) -> DocAnnotations:
         """Find (or create) the annotations for the PDF at `path`, and record
         it as recently opened. Does not write to the PDF."""
         path = path.resolve()
@@ -579,13 +645,113 @@ class AnnotationStore:
                 log.info("%s changed; carrying annotations over from %s", path, prev_sha[:12])
                 doc = DocAnnotations.from_dict(old.to_dict(), sha)
                 doc.carried_from = prev_sha
-        doc.file_name = path.name
+        from_library = self.is_library_copy(path)
+        if not from_library or not doc.file_name:
+            doc.file_name = path.name
         if title:
             doc.title = title
-        if str(path) not in doc.paths:
+        # The library's own copy is a fallback, not a place the user keeps it.
+        if not from_library and str(path) not in doc.paths:
             doc.paths.append(str(path))
+        doc.added = doc.added or now_iso()
+        doc.opened = time.time()
+        doc.page_count = page_count or doc.page_count
+        doc.pdf_id = pdf_id or doc.pdf_id
         self.save(doc)
         self.touch_recent(path, sha, title or doc.title or path.stem)
+        return doc
+
+    # -- library
+    def documents(self) -> list[DocAnnotations]:
+        """Every document Dogear has opened."""
+        out = []
+        for f in sorted(self.ann_dir.glob("*.json")) if self.ann_dir.is_dir() else []:
+            sha = f.stem
+            if len(sha) == 64:
+                out.append(self.load(sha))
+        return out
+
+    def copy_path(self, sha: str) -> Path:
+        return self.library_dir / f"{sha}.pdf"
+
+    def is_library_copy(self, path: Path) -> bool:
+        return path.parent == self.library_dir.resolve() if self.library_dir.exists() else False
+
+    def keep_copy(self, sha: str, source: Path) -> bool:
+        """Copy the PDF into the library, once. True if a copy exists after."""
+        target = self.copy_path(sha)
+        if target.is_file():
+            return True
+        if not source.is_file():
+            return False
+        self.library_dir.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_name(f".{target.name}.tmp")
+        try:
+            shutil.copyfile(source, tmp)
+            if file_sha256(tmp) != sha:  # the source changed under us
+                tmp.unlink()
+                return False
+            os.replace(tmp, target)
+        except OSError:
+            tmp.unlink(missing_ok=True)
+            raise
+        return True
+
+    def openable_path(self, doc: DocAnnotations) -> str:
+        """Where to open a document from: the most recent path that still
+        holds this exact file, else the library copy, else ""."""
+        for p in reversed(doc.paths):
+            path = Path(p)
+            try:
+                if path.is_file() and self.identify(path) == doc.sha256:
+                    return p
+            except OSError:
+                continue
+        copy = self.copy_path(doc.sha256)
+        return str(copy) if copy.is_file() else ""
+
+    def categories(self) -> list[str]:
+        return list(self._index["categories"])
+
+    def add_category(self, name: str) -> str:
+        name = name.strip()
+        if name and name.casefold() not in (c.casefold() for c in self._index["categories"]):
+            self._index["categories"].append(name)
+            self._index["categories"].sort(key=str.casefold)
+            self._save_index()
+        return next((c for c in self._index["categories"] if c.casefold() == name.casefold()), "")
+
+    def rename_category(self, old: str, new: str) -> None:
+        new = new.strip()
+        if not new or old not in self._index["categories"]:
+            return
+        clash = next((c for c in self._index["categories"] if c.casefold() == new.casefold() and c != old), None)
+        cats = [c for c in self._index["categories"] if c != old]
+        if clash is None:
+            cats.append(new)
+        self._index["categories"] = sorted(cats, key=str.casefold)
+        self._save_index()
+        target = clash or new
+        for doc in self.documents():
+            if old in doc.categories:
+                doc.categories = sorted({target if c == old else c for c in doc.categories}, key=str.casefold)
+                self.save(doc)
+
+    def remove_category(self, name: str) -> None:
+        """Delete a category. Documents in it stay in the library."""
+        if name not in self._index["categories"]:
+            return
+        self._index["categories"] = [c for c in self._index["categories"] if c != name]
+        self._save_index()
+        for doc in self.documents():
+            if name in doc.categories:
+                doc.categories = [c for c in doc.categories if c != name]
+                self.save(doc)
+
+    def set_categories(self, sha: str, names: list[str]) -> DocAnnotations:
+        doc = self.load(sha)
+        doc.categories = sorted({self.add_category(n) for n in names if n.strip()} - {""}, key=str.casefold)
+        self.save(doc)
         return doc
 
     # -- recents

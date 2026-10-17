@@ -4,7 +4,8 @@
 
 Dogear is a PDF reader for studying, built for [Omarchy](https://omarchy.org). It does
 what you'd do to a paper textbook: highlight in several colors, write notes next to
-what you highlighted, bookmark pages, and keep general notes about the document. It
+what you highlighted, bookmark pages, fill in the blanks on worksheets, and keep
+general notes about the document. It
 remembers where you stopped reading in every file. When you're done, export everything
 to Markdown, for example straight into your Obsidian vault.
 
@@ -12,9 +13,10 @@ to Markdown, for example straight into your Obsidian vault.
 - Remembers the page, scroll position and zoom for each file.
 - Highlights in five colors. Click a highlight to change its color, add or edit its note, copy it, or delete it.
 - Highlight notes show in the sidebar and as markers in the page margin. There are also general notes per document.
+- Answer lines: click a blank line in a worksheet and type. Your answer sits on the line.
 - Named bookmarks (bookmarked pages get a folded corner) and the PDF's own table of contents.
 - Search with jumping between matches.
-- Exports highlights, notes and bookmarks to Markdown, grouped by page.
+- Exports highlights, notes, bookmarks and answers to Markdown, grouped by page.
 - Keyboard first. Repaints immediately when you run `omarchy theme set`.
 - Never modifies your PDFs. No network access, no telemetry.
 
@@ -69,6 +71,10 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 | `Ctrl+C` | Copy the selection |
 | hover a highlight | Shows its note, if it has one (also when hovering its margin marker) |
 | click a highlight | Change color (`1`–`5`), edit note (`e`/`Enter`), copy (`c`), delete (`d`/`Del`) |
+| click an answer line, `i` | Type an answer on it (`i`: the first answer line in view) |
+| `Tab`, `Shift+Tab` (while answering) | Next or previous answer line |
+| `Enter` (while answering) | Next answer line; on ruled lines under a question, a new line |
+| `Esc` (while answering) | Done typing |
 | `b`, `Ctrl+D` | Bookmark the page (named after its table of contents entry) |
 | `Ctrl+N` | New document note |
 | `/`, `Ctrl+F` | Search |
@@ -80,6 +86,24 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 In the sidebar lists: `↑` `↓` to move, `Enter` to jump. In Highlights, `e` edits the note
 and `Del` deletes. In Bookmarks, `r`/`F2` renames and `Del` deletes. On the start screen,
 `Del` removes a file from the recent list.
+
+## Answer lines
+
+Worksheets and workbooks leave lines to write answers on. Click just above (or on) such
+a line and start typing. There's no text box to place: Dogear finds the line, writes on
+it in blue ink at the size of the page's own text, and shrinks a long answer to fit a
+short blank. When the mouse is over an empty answer line it lights up, so you can see
+where you can write.
+
+- Ruled lines under a question (evenly spaced, same length) are one answer. The text
+  wraps from line to line, and `Enter` starts a new line.
+- `Tab` and `Enter` move to the next blank, so a fill-in-the-blank page can be done from
+  the keyboard. `Shift+Tab` goes back. `i` starts on the first line in view.
+- Click an answer to change it. Empty it to remove it.
+
+Lines are found in the rendered page, not the text, so drawn rules, runs of underscores
+and dotted lines all work. Edges of boxes and tables, underlines under text and thick
+bars are ignored.
 
 ## Markdown export
 
@@ -95,6 +119,7 @@ sha256: 3f1c…
 exported: 2026-10-16T20:30:00-04:00
 highlights: 3
 bookmarks: 1
+answers: 2
 tags: [dogear]
 ---
 
@@ -112,11 +137,16 @@ Exam covers chapters 1–3.
 > — p. 3 · green
 
 Key exam point.
+
+**Q:** 3. Plants absorb ___ and ___ light.  
+**A:** red  
+**A:** blue  
 ```
 
-Document notes come first, then one section per page that has bookmarks or highlights.
-Within a page, highlights are in reading order (top to bottom), and each note sits
-under its highlight. When the PDF labels pages differently (roman numerals in a
+Document notes come first, then one section per page that has bookmarks, highlights
+or answers. Within a page, highlights and answers are in reading order (top to
+bottom), and each note sits under its highlight. An answer comes with the printed
+text around its line (`**Q:**`, blanks shown as `___`), so the export reads without the PDF. When the PDF labels pages differently (roman numerals in a
 preface, for example), the heading shows both: `## Page 5 (iv)`.
 
 The export is generated and is overwritten on every export, so keep your own notes in
@@ -179,6 +209,14 @@ Annotation file format (`"dogear": 1` is the schema version):
   ],
   "notes": [
     { "id": "…", "text": "Exam covers chapters 1–3.", "created": "…", "updated": "…" }
+  ],
+  "answers": [
+    {
+      "id": "…", "page": 2, "x": 162.0, "y": 623.0, "w": 107.0,
+      "pitch": 0.0, "lines": 1, "size": 11.5,
+      "text": "red", "context": "3. Plants absorb ___ and ___ light.",
+      "created": "…", "updated": "…"
+    }
   ]
 }
 ```
@@ -186,6 +224,8 @@ Annotation file format (`"dogear": 1` is the schema version):
 Pages are 0-based in the file and 1-based everywhere you see them. Rectangles are
 `[x, y, width, height]` in PDF points (1/72 inch) from the page's top-left corner, so
 they don't depend on zoom. `view.offset` is how far down the top page you'd scrolled (0–1).
+For an answer, `x`/`y`/`w` are the left end, height and length of its line, and
+`pitch` and `lines` describe ruled lines below it (`pitch` 0 means a single line).
 Colors are `yellow`, `green`, `blue`, `pink` and `purple`. On screen they use the Omarchy
 theme's matching colors when those are bright enough to read on paper, and classic
 highlighter colors otherwise.
@@ -204,13 +244,16 @@ highlighter colors otherwise.
   purpose: running Python on a render thread can deadlock Qt's pdfium lock against
   Python's GIL. PyMuPDF wasn't needed.
 - **Core:** `store.py` (annotation store) and `export.py` (Markdown) are pure Python with
-  no Qt imports, and they're unit tested.
+  no Qt imports, and they're unit tested. So is the answer-line detector in `rules.py`:
+  it scans 8-bit grayscale bytes of a page rendered at 2 px/pt, about 20 ms a page, and
+  caches the result per page.
 
 ```
 src/dogear/
 ├── __main__.py      entry point, CLI
 ├── controllers.py   Doc and App objects exposed to QML
-├── pdf.py           selection, word, outline and link helpers
+├── pdf.py           selection, word, outline, link and text line helpers
+├── rules.py         finds answer lines in a rendered page (no Qt in the detector)
 ├── store.py         annotation store (no Qt)
 ├── export.py        Markdown export (no Qt)
 ├── config.py        XDG paths, settings
@@ -224,11 +267,11 @@ src/dogear/
 PYTHONPATH=src python3 -m unittest discover -s tests
 ```
 
-This runs the store, export and theme tests, plus an offscreen end-to-end smoke test.
+This runs the store, export, answer-line and theme tests, plus an offscreen end-to-end smoke test.
 The smoke test drives the real QML app with mouse and keyboard input: it selects and
 highlights text, writes a note, recolors a highlight, adds a bookmark and a document
-note, searches, exports, then closes and reopens the file and checks that everything
-was restored. It needs Ghostscript to build its sample PDF and is skipped without it.
+note, types answers on a worksheet page (click, `Tab`, `Enter`), searches, exports,
+then closes and reopens the file and checks that everything was restored. It needs Ghostscript to build its sample PDF and is skipped without it.
 `tools/make_sample_pdf.py` builds that sample on its own.
 
 ## License

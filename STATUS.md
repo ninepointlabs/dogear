@@ -14,8 +14,8 @@ Needs only Arch's `pyside6` package, which is already installed on this machine
 
 ## What works (verified)
 
-Verified by `PYTHONPATH=src python3 -m unittest discover -s tests` (42 tests, all pass,
-stable over 6 consecutive runs) and by a short run on the real Hyprland session.
+Verified by `PYTHONPATH=src python3 -m unittest discover -s tests` (66 tests, all pass,
+stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 
 - Open from the CLI argument, `Ctrl+O` file dialog, drag and drop, and the recent files list on the start screen. The start screen marks missing files, and `Del` removes an entry.
 - Remembers page, scroll offset, zoom and fit-width per file. The smoke test closes and reopens a file and checks the page and zoom.
@@ -23,6 +23,7 @@ stable over 6 consecutive runs) and by a short run on the real Hyprland session.
 - Mouse-wheel scrolling glides smoothly. Touchpads scroll 1:1, and `Shift`+wheel scrolls sideways.
 - Hovering a highlight that has a note, or its margin marker, shows the note in a tooltip after a short delay.
 - Highlight notes appear in the Highlights sidebar and as markers in the page margin. General per-document notes are in the Notes sidebar.
+- **Answer lines** (added after v0.1): click on or just above a blank line and type. No text box to place. Dogear finds drawn rules, underscore runs and dotted lines in the rendered page. Ruled lines under a question become one multi-line answer. `Tab`/`Enter` go to the next blank, `Shift+Tab` back, `i` starts on the first line in view, and an emptied answer is removed. Answers are exported with the question text around them. Checked offscreen on the Ruhi Book 5 workbook by drawing what was detected over several pages and looking at it. On the fill-in-the-blank pages every blank was found, the boxed quotations' borders were skipped, and detection took about 20 ms per page. Typed answers stay on their lines when zooming.
 - Named bookmarks, defaulting to the page's table of contents entry. They have a sidebar panel and a dog-ear on the page corner. The PDF outline appears in the Contents panel, with the current section highlighted.
 - Incremental search with match count. Enter/`n` and Shift+Enter/`N` jump between matches, starting from the page you're reading.
 - Markdown export (`Ctrl+E`) grouped by page, with quoted highlights, page numbers and labels, notes and bookmarks, plus YAML front matter. The export folder is configurable in Settings (`Ctrl+,`). Default is `~/Documents/Dogear`.
@@ -43,6 +44,10 @@ stable over 6 consecutive runs) and by a short run on the real Hyprland session.
 - **There's no dark or inverted page mode.** Pages always render on white.
 - **Highlights already in the PDF** (made in other apps) aren't imported or shown as editable.
 - **It hasn't been tried on real class PDFs**, only on generated ones. Selection boxes come from pdfium's line boxes and may look a little loose on some PDFs.
+- **Answer lines need a line.** An empty box, or open space under a question with no line, can't be typed into. Table cells aren't either, because table borders are skipped on purpose.
+- **Answers on fill-in-the-blank sentences are one blank each.** A long answer shrinks to fit its blank, then wraps below it. It doesn't flow on to the next blank.
+- **Answers don't appear in the sidebar or in search.** They're on the page and in the export.
+- **The detector can be fooled.** A long horizontal rule with empty space above it, such as a separator under a heading, also counts as an answer line. A click there opens an empty answer, which disappears again when you click elsewhere.
 - **The PKGBUILD is untested.** There's no remote or release tarball yet, so `source`/`sha256sums` are placeholders. The wheel build was checked: it includes the QML, assets and the `dogear` entry point.
 
 ## Decisions made without asking
@@ -51,6 +56,7 @@ stable over 6 consecutive runs) and by a short run on the real Hyprland session.
 - **Rendering uses QtPdf, not PyMuPDF.** QtPdf ships with `pyside6`, so there's no extra dependency, and it covers rendering, selection geometry, search rectangles, the outline, page labels and links. Pages render through QML's `PdfPageImage` in C++. My first version used a Python image provider, and it deadlocked under test (Qt's pdfium lock against the GIL on the render thread). Python now touches pdfium only on the UI thread.
 - **Storage is a central store keyed by content hash, not a sidecar file.** This way annotations survive renames, nothing is written into class folders (which may be synced or read-only), and the PDF is untouched. When a file at a known path changes (a revised handout), its annotations are carried over with a notice. They may sit slightly off if the layout changed.
 - **Export details:** one regenerated `<pdf name>.md` per PDF. It never overwrites a file Dogear didn't write. Two PDFs with the same name get a hash suffix.
+- **Answer lines are found from pixels, not the text layer.** Worksheets draw blanks in too many ways (rules, underscores, dots) for the text layer alone. Answers are stored with the line's position in points, like highlights, so they keep their place at any zoom. They're typed in a proportional sans font in blue ink, at the page's own text size, so they read as filled in, not as part of the print.
 - **Keybindings:** Super is left to Hyprland. Commands use Ctrl, and reading uses Vim-style plain keys (`j`/`k`, `J`/`K`, `g`/`G`, `/`, `n`/`N`).
 - **Tests use stdlib `unittest`,** since pytest isn't installed for the system Python. pytest can run them too.
 - **I didn't install anything into the system or `~/.local`** (desktop file, icons). They're in `packaging/` for when Dogear gets packaged through omarchy-pkgs.

@@ -18,6 +18,16 @@ from .store import HIGHLIGHT_COLORS, AnnotationStore, Answer, DocAnnotations, Re
 log = logging.getLogger(__name__)
 
 
+def _shown(path: Path) -> str:
+    """A path as Settings shows it: ~/… inside your home folder. Settings
+    expands ~ again when it saves."""
+    home = Path.home()
+    try:
+        return "~/" + path.relative_to(home).as_posix() if path != home else "~"
+    except ValueError:
+        return str(path)
+
+
 def _to_path(path_or_url: str) -> Path:
     if path_or_url.startswith("file:"):
         return Path(QUrl(path_or_url).toLocalFile())
@@ -50,6 +60,7 @@ class DocumentController(QObject):
         self._links: dict[int, list[dict]] = {}
         self._rules: dict[int, list[dict]] = {}
         self._lines: dict[int, list[dict]] = {}
+        self._char_lefts: dict[tuple[int, int], list[float]] = {}
         self._error = ""
 
         self._search = QPdfSearchModel(self)
@@ -171,6 +182,7 @@ class DocumentController(QObject):
         self._links = {}
         self._rules = {}
         self._lines = {}
+        self._char_lefts = {}
         self._revision += 1
         self.loadedChanged.emit()
         self.annotationsChanged.emit()
@@ -469,9 +481,17 @@ class DocumentController(QObject):
             self._lines[page] = pdf.text_lines(self._pdf, page)
         # Write in the same size as the page's own text.
         slot = rules.slot_from(found, index, rules.text_size(self._lines[page]))
+        lines = self._lines[page]
+        def char_lefts(i: int) -> list[float]:
+            key = (page, i)
+            if key not in self._char_lefts:
+                self._char_lefts[key] = pdf.char_lefts(self._pdf, page, lines[i])
+            return self._char_lefts[key]
+
+        context = rules.context_for(lines, slot["x"], slot["y"], rules=found, char_lefts=char_lefts)
         ans = self._ann.add_answer(
             page, slot["x"], slot["y"], slot["w"], pitch=slot["pitch"], lines=slot["lines"],
-            size=slot["size"], context=rules.context_for(self._lines[page], slot["x"], slot["y"]),
+            size=slot["size"], context=context,
         )
         self._changed()
         return ans.id
@@ -661,7 +681,7 @@ class DocumentController(QObject):
         except OSError as exc:
             self.message.emit(f"Export failed: {exc}")
             return ""
-        self.message.emit(f"Exported to {target}")
+        self.message.emit(f"Exported to {_shown(target)}")
         return str(target)
 
 
@@ -773,7 +793,7 @@ class AppController(QObject):
 
     @Property(str, notify=settingsChanged)
     def exportDir(self) -> str:
-        return str(self.settings.resolved_export_dir())
+        return _shown(self.settings.resolved_export_dir())
 
     @Property(bool, notify=settingsChanged)
     def exportDirIsDefault(self) -> bool:
@@ -789,11 +809,11 @@ class AppController(QObject):
             log.error("Saving settings failed: %s", exc)
         self.settingsChanged.emit()
 
-    dataDir = Property(str, lambda self: str(self._store.root), notify=settingsChanged)
-    libraryDir = Property(str, lambda self: str(self._store.library_dir), notify=settingsChanged)
-    removedDir = Property(str, lambda self: str(self._store.removed_dir), notify=settingsChanged)
+    dataDir = Property(str, lambda self: _shown(self._store.root), notify=settingsChanged)
+    libraryDir = Property(str, lambda self: _shown(self._store.library_dir), notify=settingsChanged)
+    removedDir = Property(str, lambda self: _shown(self._store.removed_dir), notify=settingsChanged)
     # The library folder: notes, categories and PDF copies, maybe synced.
-    libraryFolder = Property(str, lambda self: str(self._store.root), notify=settingsChanged)
+    libraryFolder = Property(str, lambda self: _shown(self._store.root), notify=settingsChanged)
 
     @Property(bool, notify=settingsChanged)
     def libraryFolderIsDefault(self) -> bool:

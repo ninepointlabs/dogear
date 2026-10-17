@@ -317,14 +317,35 @@ _BLANK = re.compile(r"_{2,}|(?:\.\s?){4,}")
 _SPACES = re.compile(r"\s+")
 
 
-def context_for(lines: list[dict], x: float, y: float, max_lines: int = 3) -> str:
+def context_for(
+    lines: list[dict], x: float, y: float, max_lines: int = 4,
+    rules: list[dict] | None = None, char_lefts=None,
+) -> str:
     """The printed text that goes with an answer line: the text on the
-    line's row and the lines of the same item above it (the question).
+    line's row and the other lines of the same item (the question).
 
     `lines` are the page's text lines in reading order, each
     {"text", "rect": [x, y, w, h]} in PDF points. Blanks printed as
-    underscores or dots come out as "___".
+    underscores or dots come out as "___". Blanks drawn as lines leave no
+    text; given the page's `rules` and `char_lefts(i)`, the left edge of
+    each character of lines[i], they come out as "___" too.
     """
+    rules = rules or []
+
+    def on_row(i: int) -> list[dict]:
+        """The drawn blanks on line i's row, left to right."""
+        r = lines[i]["rect"]
+        return sorted((b for b in rules if r[1] <= b["y"] <= r[1] + r[3] + 6.0), key=lambda b: b["x"])
+
+    def left(i: int) -> float:
+        # A line that starts with a blank starts where the blank does.
+        return min([lines[i]["rect"][0]] + [b["x"] for b in on_row(i)])
+
+    def joins(a: int, b: int) -> bool:
+        """Whether line b continues line a: the same column, no paragraph gap."""
+        ra, rb = lines[a]["rect"], lines[b]["rect"]
+        return 0 <= rb[1] - (ra[1] + ra[3]) <= max(ra[3], rb[3]) + 6.0 and abs(left(a) - left(b)) <= 60.0
+
     def overlap(rect: list[float]) -> float:
         return min(rect[1] + rect[3], y + 1.0) - max(rect[1], y - 12.0)
 
@@ -340,13 +361,34 @@ def context_for(lines: list[dict], x: float, y: float, max_lines: int = 3) -> st
     picked = [row]
     while len(picked) < max_lines and not _ITEM.match(lines[picked[0]]["text"]):
         prev = picked[0] - 1
-        if prev < 0:
-            break
-        a, b = lines[prev]["rect"], lines[picked[0]]["rect"]
-        # Contiguous: the same column and no paragraph gap in between.
-        if not (0 <= b[1] - (a[1] + a[3]) <= max(a[3], b[3]) + 6.0) or abs(a[0] - b[0]) > 60.0:
+        if prev < 0 or not joins(prev, picked[0]):
             break
         picked.insert(0, prev)
-    text = clean_pdf_text("\n".join(lines[i]["text"] for i in picked))
+    # A question that wraps: its next lines, up to the next item.
+    while len(picked) < max_lines:
+        nxt = picked[-1] + 1
+        if nxt >= len(lines) or _ITEM.match(lines[nxt]["text"]) or not joins(picked[-1], nxt):
+            break
+        picked.append(nxt)
+
+    def with_blanks(i: int) -> str:
+        text = lines[i]["text"]
+        drawn = on_row(i)
+        # Blanks typed as underscores or dots are in the text already.
+        if not drawn or char_lefts is None or _BLANK.search(text):
+            return text
+        xs = char_lefts(i)
+        for blank in reversed(drawn):
+            if any(blank["x"] < cx < blank["x"] + blank["w"] - 1 for cx in xs):
+                continue  # characters there: not a gap in the text
+            k = sum(1 for cx in xs if cx < blank["x"])
+            text = text[:k] + " ___ " + text[k:]
+        return text
+
+    # Glyphs with no text behind them come out as U+FFFD.
+    text = clean_pdf_text("\n".join(with_blanks(i) for i in picked).replace("\ufffd", ""))
+    text = re.sub(r" ([,.;:?!])", r"\1", _SPACES.sub(" ", text))
     text = _SPACES.sub(" ", _BLANK.sub("___", text)).strip()
+    # "Name of the process: ___" is a label; its blank adds nothing.
+    text = re.sub(r":\s*___$", ":", text)
     return text if len(text) <= 300 else "…" + text[-299:]

@@ -121,15 +121,28 @@ _LINE = re.compile(r"[^\r\n]+")
 
 
 def text_lines(doc: QPdfDocument, page: int) -> list[dict]:
-    """The page's text lines in reading order: {"text", "rect"} in points."""
+    """The page's text lines in reading order: {"text", "rect", "start"},
+    the rect in points and `start` the index of the line's first character
+    in the page's text."""
     text = doc.getAllText(page)
     if not text.isValid():
         return []
     out = []
     for m in _LINE.finditer(text.text()):
-        if not m.group().strip():
+        line = m.group()
+        if not line.strip():
             continue
         sel = doc.getSelectionAtIndex(page, m.start(), m.end() - m.start())
         if sel.isValid():
-            out.append({"text": m.group().strip(), "rect": rect_list(sel.boundingRectangle())})
+            start = m.start() + len(line) - len(line.lstrip())
+            out.append({"text": line.strip(), "rect": rect_list(sel.boundingRectangle()), "start": start})
+    return out
+
+
+def char_lefts(doc: QPdfDocument, page: int, line: dict) -> list[float]:
+    """The left edge of each character of a line from text_lines(), in
+    points. About 0.1 ms a character, so only for the lines that need it."""
+    out = []
+    for k in range(len(line["text"])):
+        out.append(doc.getSelectionAtIndex(page, line["start"] + k, 1).boundingRectangle().left())
     return out

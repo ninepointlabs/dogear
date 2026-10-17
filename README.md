@@ -245,7 +245,9 @@ Key exam point.
 Document notes come first, then one section per page that has bookmarks, highlights
 or answers. Within a page, highlights and answers are in reading order (top to
 bottom), and each note sits under its highlight. An answer comes with the printed
-text around its line (`**Q:**`, blanks shown as `___`), so the export reads without the PDF. When the PDF labels pages differently (roman numerals in a
+text around its line (`**Q:**`, blanks shown as `___`), so the export reads without the PDF.
+That's the whole question, including the lines it wraps onto; the blanks of one question
+share a single `**Q:**`, with their answers under it in order. When the PDF labels pages differently (roman numerals in a
 preface, for example), the heading shows both: `## Page 5 (iv)`.
 
 The export is generated and is overwritten on every export, so keep your own notes in

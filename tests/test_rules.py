@@ -217,6 +217,39 @@ class TestContext(unittest.TestCase):
     def test_underscore_blanks_collapsed(self):
         self.assertEqual(context_for(self.LINES, 160, 623), "3. Plants absorb ___ and ___ light.")
 
+    def test_drawn_blanks_and_a_wrapped_question(self):
+        # "1. The pigment … green is ______, and it absorbs mostly
+        #  ______ and ______ light." with the blanks drawn as lines: the
+        # text has no characters for them, and the second line starts with one.
+        lines = [
+            {"text": "1. The pigment is , and it absorbs mostly", "rect": [97, 126, 300, 11]},
+            {"text": "and light.", "rect": [218, 152, 160, 11]},
+            {"text": "2. Next question", "rect": [97, 195, 200, 11]},
+        ]
+        rules = [{"x": 190.0, "y": 134.0, "w": 20.0}, {"x": 108.0, "y": 160.0, "w": 100.0},
+                 {"x": 241.5, "y": 160.0, "w": 100.0}]
+
+        def char_lefts(i):
+            # Evenly spaced characters, with a gap where each blank is.
+            text = lines[i]["text"]
+            x = lines[i]["rect"][0]
+            out = []
+            for ch in text:
+                out.append(x)
+                x += 5.0
+                if i == 0 and len(out) == len("1. The pigment is "):
+                    x = 212.0
+                if i == 1 and len(out) == len("and "):
+                    x = 345.0
+            return out
+
+        want = "1. The pigment is ___, and it absorbs mostly ___ and ___ light."
+        for blank in rules:
+            got = context_for(lines, blank["x"] + 5, blank["y"], rules=rules, char_lefts=char_lefts)
+            self.assertEqual(got, want)
+        # Without the character positions, the text still reads as one question.
+        self.assertEqual(context_for(lines, 110, 160, rules=rules), "1. The pigment is, and it absorbs mostly and light.")
+
     def test_nothing_near(self):
         self.assertEqual(context_for(self.LINES, 90, 760), "")
         self.assertEqual(context_for([], 90, 100), "")

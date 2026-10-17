@@ -29,8 +29,8 @@ DgDialog {
             ["Ctrl+\\  F9", "Toggle sidebar"], ["Ctrl+1 … 4", "Contents, Highlights, Bookmarks, Notes"],
             ["Esc", "Back to the page"]] },
         { name: "Library", keys: [
-            ["/", "Search (also inside your marks)"], ["s", "Next sort order"], ["c", "Categories of a document"],
-            ["n", "New category"], ["← →", "Categories / documents"], ["F2  Del", "Rename / delete a category"]] }
+            ["/", "Search (also inside your marks)"], ["s", "Next sort order"], ["c", "Categories of a document"], ["F2  Del", "Rename / remove a document"],
+            ["n", "New category"], ["← →", "Categories / documents"], ["F2  Del (categories)", "Rename / delete a category"]] }
     ]
 
     GridLayout {

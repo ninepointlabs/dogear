@@ -42,6 +42,7 @@ Window {
         id: start
         StartView {
             prompt: promptDialog
+            confirm: confirmDialog
             categoriesDialog: categories
             onOpenRequested: openDialog.open()
         }
@@ -73,6 +74,7 @@ Window {
     }
 
     DgPrompt { id: promptDialog }
+    DgConfirm { id: confirmDialog; objectName: "confirmDialog" }
     CategoriesDialog { id: categories }
 
     // Another copy of this document (a re-download, a new edition) already

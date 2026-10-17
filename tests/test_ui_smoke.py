@@ -386,6 +386,29 @@ class UiSmokeTest(unittest.TestCase):
         self.assertEqual(self.doc.fileName, "class notes.pdf")
         self.assertEqual(Path(self.doc.path), store.copy_path(second_sha))
 
+        # Rename it (F2) for easier identification, then remove it (Del).
+        self.key(Qt.Key.Key_L, Qt.KeyboardModifier.ControlModifier)
+        self.wait(300)
+        self.assertEqual(self.library_rows()[0]["sha256"], second_sha)
+        self.key(Qt.Key.Key_F2)
+        self.key(Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
+        self.type_text("Biology, second download")
+        self.key(Qt.Key.Key_Return)
+        self.wait(200)
+        row = self.library_rows()[0]
+        self.assertEqual(row["title"], "Biology, second download")
+        self.assertEqual(row["pdfTitle"], "Dogear sample")
+        self.key(Qt.Key.Key_Delete)
+        self.assertTrue(self.window.findChild(QObject, "confirmDialog").property("opened"))
+        self.key(Qt.Key.Key_Return)
+        self.wait(200)
+        self.assertEqual([r["sha256"] for r in self.library_rows()], [first_sha])
+        self.assertFalse(store.has(second_sha))
+        self.assertEqual(len(list((store.root / "removed").glob(f"{second_sha}-*/{second_sha}.json"))), 1)
+        # The first copy and its PDF are untouched.
+        self.assertTrue(self.pdf.is_file())
+        self.assertGreater(len(store.load(first_sha).highlights), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

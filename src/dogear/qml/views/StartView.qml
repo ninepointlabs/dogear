@@ -11,6 +11,7 @@ FocusScope {
     objectName: "library"
 
     property var prompt: null
+    property var confirm: null
     property var categoriesDialog: null
     signal openRequested()
 
@@ -34,6 +35,28 @@ FocusScope {
     function focusList() { list.forceActiveFocus() }
     function editCategories(row) {
         if (row && categoriesDialog) categoriesDialog.edit(row, start.focusList)
+    }
+    function renameDocument(row) {
+        if (!prompt || !row) return
+        prompt.placeholder = row.pdfTitle || row.fileName
+        prompt.ask("Rename “" + row.title + "”", row.label || row.title, name => {
+            // Clearing the name (or typing the PDF's own title) goes back to it.
+            App.renameDocument(row.sha256, name.trim() === (row.pdfTitle || "") ? "" : name)
+        }, () => { prompt.placeholder = ""; start.focusList() })
+    }
+    function removeDocument(row) {
+        if (!confirm || !row) return
+        const marks = row.marks ? row.marks + " mark" + (row.marks > 1 ? "s" : "") : "no marks"
+        confirm.ask("Remove “" + row.title + "” from the library?",
+            "Its " + marks + (row.copy ? " and Dogear's copy of the PDF" : "") + " go to a removed folder in "
+            + App.dataDir + ", where you can get them back. The PDF itself"
+            + (row.original ? " (" + row.folder + "/" + row.fileName + ")" : "") + " is not touched.",
+            "Remove", () => {
+                const at = list.currentIndex
+                if (App.removeDocument(row.sha256)) Qt.callLater(() => {
+                    list.currentIndex = Math.min(at, list.count - 1)
+                })
+            }, start.focusList, true)
     }
     function newCategory() {
         if (!prompt) return
@@ -214,6 +237,8 @@ FocusScope {
                         const row = currentIndex >= 0 ? model[currentIndex] : null
                         if (event.key === Qt.Key_Left || event.key === Qt.Key_H || event.key === Qt.Key_Backtab) catList.forceActiveFocus()
                         else if (event.key === Qt.Key_C && row) start.editCategories(row)
+                        else if ((event.key === Qt.Key_F2 || event.key === Qt.Key_R) && row) start.renameDocument(row)
+                        else if (event.key === Qt.Key_Delete && row) start.removeDocument(row)
                         else if (event.key === Qt.Key_S) start.cycleSort()
                         else if (event.key === Qt.Key_N) start.newCategory()
                         else if (event.key === Qt.Key_J) incrementCurrentIndex()
@@ -239,6 +264,16 @@ FocusScope {
                                     Layout.fillWidth: true
                                     text: row.modelData.title
                                     font.weight: Font.DemiBold
+                                }
+                                DgText {
+                                    // A renamed document still shows what it's called on disk.
+                                    Layout.fillWidth: true
+                                    visible: row.modelData.label.length > 0 && row.modelData.pdfTitle.length > 0
+                                        && row.modelData.pdfTitle !== row.modelData.label
+                                    text: row.modelData.pdfTitle
+                                    role: "caption"
+                                    secondary: true
+                                    elide: Text.ElideRight
                                 }
                                 DgText {
                                     Layout.fillWidth: true
@@ -278,6 +313,14 @@ FocusScope {
                                     }
                                 }
                             }
+                            // Mouse actions for the row under the pointer or selected.
+                            Row {
+                                visible: row.hovered || row.isCurrent
+                                spacing: Theme.spaceXxs
+                                DgButton { text: "Rename"; hint: "F2"; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: start.renameDocument(row.modelData) }
+                                DgButton { text: "Categories"; hint: "c"; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: start.editCategories(row.modelData) }
+                                DgButton { text: "Remove"; hint: "Del"; variant: "ghost"; focusPolicy: Qt.NoFocus; onClicked: start.removeDocument(row.modelData) }
+                            }
                             ColumnLayout {
                                 spacing: 0
                                 DgText {
@@ -305,7 +348,7 @@ FocusScope {
                 }
 
                 DgText {
-                    text: "Enter open · / search · s sort · c categories · n new category · ← categories (F2 rename, Del delete)"
+                    text: "Enter open · / search · s sort · F2 rename · c categories · Del remove · n new category · ← categories"
                     role: "caption"
                     muted: true
                 }

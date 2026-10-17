@@ -74,6 +74,7 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 | click an answer line, `i` | Type an answer on it (`i`: the first answer line in view) |
 | `Tab`, `Shift+Tab` (while answering) | Next or previous answer line |
 | `Enter` (while answering) | Next answer line; on ruled lines under a question, a new line |
+| `Ctrl+=`, `Ctrl+-` (while answering) | Answer text bigger or smaller (instead of zooming) |
 | `Esc` (while answering) | Done typing |
 | `b`, `Ctrl+D` | Bookmark the page (named after its table of contents entry) |
 | `Ctrl+N` | New document note |
@@ -99,11 +100,16 @@ where you can write.
   wraps from line to line, and `Enter` starts a new line.
 - `Tab` and `Enter` move to the next blank, so a fill-in-the-blank page can be done from
   the keyboard. `Shift+Tab` goes back. `i` starts on the first line in view.
+- To fit more on a line, make the answer's text smaller with `Ctrl+-` (`Ctrl+=` makes it
+  bigger), or with the A− / A+ buttons in the bar at the bottom of the view while typing.
+  Each answer keeps its own size.
 - Click an answer to change it. Empty it to remove it.
 
 Lines are found in the rendered page, not the text, so drawn rules, runs of underscores
 and dotted lines all work. Edges of boxes and tables, underlines under text and thick
-bars are ignored.
+bars are ignored. Short blanks (down to about 14 pt, like `____ sentence` lists) count
+when they have space on both sides and nothing right below them, which tells them apart
+from dashes and letters.
 
 ## Markdown export
 

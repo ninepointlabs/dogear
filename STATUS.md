@@ -14,7 +14,7 @@ Needs only Arch's `pyside6` package, which is already installed on this machine
 
 ## What works (verified)
 
-Verified by `PYTHONPATH=src python3 -m unittest discover -s tests` (66 tests, all pass,
+Verified by `PYTHONPATH=src python3 -m unittest discover -s tests` (70 tests, all pass,
 stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 
 - Open from the CLI argument, `Ctrl+O` file dialog, drag and drop, and the recent files list on the start screen. The start screen marks missing files, and `Del` removes an entry.
@@ -23,7 +23,7 @@ stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 - Mouse-wheel scrolling glides smoothly. Touchpads scroll 1:1, and `Shift`+wheel scrolls sideways.
 - Hovering a highlight that has a note, or its margin marker, shows the note in a tooltip after a short delay.
 - Highlight notes appear in the Highlights sidebar and as markers in the page margin. General per-document notes are in the Notes sidebar.
-- **Answer lines** (added after v0.1): click on or just above a blank line and type. No text box to place. Dogear finds drawn rules, underscore runs and dotted lines in the rendered page. Ruled lines under a question become one multi-line answer. `Tab`/`Enter` go to the next blank, `Shift+Tab` back, `i` starts on the first line in view, and an emptied answer is removed. Answers are exported with the question text around them. Checked offscreen on the Ruhi Book 5 workbook by drawing what was detected over several pages and looking at it. On the fill-in-the-blank pages every blank was found, the boxed quotations' borders were skipped, and detection took about 20 ms per page. Typed answers stay on their lines when zooming.
+- **Answer lines** (added after v0.1): click on or just above a blank line and type. No text box to place. Dogear finds drawn rules, underscore runs and dotted lines in the rendered page. Ruled lines under a question become one multi-line answer. `Tab`/`Enter` go to the next blank, `Shift+Tab` back, `i` starts on the first line in view, and an emptied answer is removed. While you type, `Ctrl+=`/`Ctrl+-` or the A−/A+ bar at the bottom change that answer's text size; each answer keeps its own. Short blanks (`____ sentence` columns, down to about 14 pt) are found too. Answers are exported with the question text around them. Checked offscreen on the Ruhi Book 5 workbook by drawing what was detected over several pages and looking at it. On the fill-in-the-blank pages every blank was found, the boxed quotations' borders were skipped, and detection took about 20 ms per page. Typed answers stay on their lines when zooming.
 - Named bookmarks, defaulting to the page's table of contents entry. They have a sidebar panel and a dog-ear on the page corner. The PDF outline appears in the Contents panel, with the current section highlighted.
 - Incremental search with match count. Enter/`n` and Shift+Enter/`N` jump between matches, starting from the page you're reading.
 - Markdown export (`Ctrl+E`) grouped by page, with quoted highlights, page numbers and labels, notes and bookmarks, plus YAML front matter. The export folder is configurable in Settings (`Ctrl+,`). Default is `~/Documents/Dogear`.
@@ -47,6 +47,7 @@ stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 - **Answer lines need a line.** An empty box, or open space under a question with no line, can't be typed into. Table cells aren't either, because table borders are skipped on purpose.
 - **Answers on fill-in-the-blank sentences are one blank each.** A long answer shrinks to fit its blank, then wraps below it. It doesn't flow on to the next blank.
 - **Answers don't appear in the sidebar or in search.** They're on the page and in the export.
+- **`Ctrl+-` isn't covered by the automated test.** The offscreen test platform doesn't deliver that key, so the test uses `Ctrl+=` and checks the A− button by hand. The key itself is untested.
 - **The detector can be fooled.** A long horizontal rule with empty space above it, such as a separator under a heading, also counts as an answer line. A click there opens an empty answer, which disappears again when you click elsewhere.
 - **The PKGBUILD is untested.** There's no remote or release tarball yet, so `source`/`sha256sums` are placeholders. The wheel build was checked: it includes the QML, assets and the `dogear` entry point.
 

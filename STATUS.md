@@ -51,7 +51,7 @@ stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 - **Answer lines need a line.** An empty box, or open space under a question with no line, can't be typed into. Table cells aren't either, because table borders are skipped on purpose.
 - **Answers on fill-in-the-blank sentences are one blank each.** A long answer shrinks to fit its blank, then wraps below it. It doesn't flow on to the next blank.
 - **Answers don't appear in the sidebar or in search.** They're on the page and in the export.
-- **`Ctrl+-` isn't covered by the automated test.** The offscreen test platform doesn't deliver that key, so the test uses `Ctrl+=` and checks the A− button by hand. The key itself is untested.
+- **`Ctrl+-` can't be sent by the offscreen test platform.** The tests instead check that no shortcut lists a key twice (Qt fires nothing for that: this is what broke `Ctrl+-` and `Ctrl+Q`) and call the resize directly. Real `Ctrl+-` presses were checked by hand on Hyprland with `wtype`.
 - **The detector can be fooled.** A long horizontal rule with empty space above it, such as a separator under a heading, also counts as an answer line. A click there opens an empty answer, which disappears again when you click elsewhere.
 - **Brought-over marks aren't realigned.** They keep their page and position. If a new edition moved text, they sit off and need redoing.
 - **Only one matching copy is offered**, the one with the most marks. Marks from two older copies can't be merged in one go.

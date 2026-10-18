@@ -27,7 +27,7 @@
     --border-bright: #384056;
     --ink: #f4f1e8;
     --ink-dim: #a9afbd;
-    --ink-faint: #6b7386;
+    --ink-faint: #767e91;
     --hl: #f5d547;
     --hl-bright: #ffe37a;
     --blue: #8fb0ff;
@@ -56,6 +56,8 @@
 
   a { color: var(--hl-bright); text-decoration: none; }
   a:hover { text-decoration: underline; text-underline-offset: 3px; }
+  /* Links inside running text are underlined, not told apart by color alone. */
+  p a:not([class]) { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
   a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--hl); outline-offset: 3px; }
   code, kbd, .mono { font-family: var(--mono); }
   code { font-size: 0.85em; color: var(--ink); background: var(--bg-raised-2); padding: 1px 6px; border-radius: 3px; }

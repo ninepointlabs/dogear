@@ -51,6 +51,48 @@ pacman pulls in what it needs from the official repos: `pyside6`, and `qt6-weben
 the Qt PDF library. `packaging/PKGBUILD` builds the same package from source with
 `makepkg -si`.
 
+### Other Linux distros (AppImage)
+
+Each release also has `dogear-<version>-x86_64.AppImage`, which brings its own Python and Qt
+and runs on Ubuntu 22.04 and later, Debian 12 and later, Fedora, openSUSE Leap 15.6 and most
+other distros from 2022 on (it needs glibc 2.34 or newer). autonomix-cli (above) picks up
+AppImages too:
+
+```sh
+autonomix-cli add https://github.com/ninepointlabs/dogear
+```
+
+Or by hand: download it from the
+[latest release](https://github.com/ninepointlabs/dogear/releases/latest), then
+
+```sh
+chmod +x dogear-*-x86_64.AppImage
+./dogear-*-x86_64.AppImage [book.pdf]
+```
+
+To get Dogear into your app menu and dock, and offered for PDFs, use an AppImage manager such
+as [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) or
+[AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher) (both can also update it in
+place from the releases), or let the AppImage add itself:
+
+```sh
+./dogear-*-x86_64.AppImage --install-desktop-entry   # menu entry and icons in ~/.local/share
+./dogear-*-x86_64.AppImage --remove-desktop-entry    # undo it
+```
+
+The menu entry starts the AppImage from where it is, so run `--install-desktop-entry` again
+after moving the file. Nothing is added to your menu unless you ask.
+
+The AppImage mounts itself with FUSE. It doesn't need the old `libfuse2`, only the
+`fusermount3` (or `fusermount`) helper, which most desktops have; if it says it can't mount,
+install `fuse3` (`sudo apt install fuse3`, `sudo dnf install fuse3`, `sudo zypper install
+fuse3`), or run it with `--appimage-extract-and-run`.
+
+Outside Omarchy, Dogear uses its own Tokyo Night colors, light or dark following your
+desktop's preference. On Omarchy the AppImage follows the Omarchy theme, as the package does.
+`tools/build-appimage.sh --test` builds and checks the AppImage locally in Docker;
+`.github/workflows/appimage.yml` builds it for each release.
+
 ## Run it from source
 
 Dogear needs Python 3.12+ and PySide6 with QtPdf. On Arch/Omarchy that's the official
@@ -72,8 +114,8 @@ dogear/bin/dogear path/to/book.pdf # open a file
 Or the equivalent: `PYTHONPATH=src python3 -m dogear [file.pdf]`.
 
 The window's Wayland app id is `dogear`, so in Hyprland it's `class:dogear` in window
-rules. `packaging/` holds the `.desktop` entry (registered for `application/pdf`), the icons
-and the PKGBUILD.
+rules. `packaging/` holds the `.desktop` entry (registered for `application/pdf`), the icons,
+the AppStream metadata, the PKGBUILD and the AppImage build (`packaging/appimage/`).
 
 ## Keyboard
 
@@ -403,7 +445,8 @@ src/dogear/
 ├── library.py       library rows, search, sort, finding other copies (no Qt)
 ├── export.py        Markdown export (no Qt)
 ├── config.py        XDG paths, settings
-├── theme/           Omarchy theme follow
+├── hostenv.py       keeps AppImage variables from programs Dogear starts
+├── theme/           Omarchy theme follow, light/dark fallback elsewhere
 └── qml/             Main.qml, views/, components/
 ```
 

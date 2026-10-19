@@ -6,8 +6,8 @@ import logging
 import os
 from pathlib import Path
 
-from PySide6.QtCore import Property, QObject, Signal, Slot
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Property, QObject, Qt, Signal, Slot
+from PySide6.QtGui import QColor, QGuiApplication
 
 from .. import config
 from . import system
@@ -21,7 +21,20 @@ def current_theme_dir() -> Path:
     override = os.environ.get("DOGEAR_THEME_DIR")
     if override:
         return Path(override)
-    return config.state_home() / "omarchy" / "current" / "theme"
+    current = config.state_home() / "omarchy" / "current" / "theme"
+    # Omarchy before the move to ~/.local/state kept it under ~/.config.
+    legacy = config.config_home() / "omarchy" / "current" / "theme"
+    if not current.is_dir() and legacy.is_dir():
+        return legacy
+    return current
+
+
+def system_prefers_light() -> bool:
+    """The desktop's light/dark preference (freedesktop portal color-scheme,
+    as Qt reads it); unknown counts as dark, Dogear's own default."""
+    if QGuiApplication.instance() is None:
+        return False
+    return QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Light
 
 
 def _color_prop(key: str, notify):
@@ -57,10 +70,13 @@ class Theme(QObject):
                 parent=self,
             )
             self._watcher.changed.connect(self.reload)
+            if QGuiApplication.instance() is not None:
+                # Only matters without an Omarchy theme: picks the fallback.
+                QGuiApplication.styleHints().colorSchemeChanged.connect(self.reload)
 
     def _load(self) -> bool:
         """Re-resolve everything; returns False when nothing changed."""
-        data = resolve(self._theme_dir)
+        data = resolve(self._theme_dir, prefer_light=system_prefers_light())
         family = system.monospace_family()
         radius = system.hyprland_rounding()
         if getattr(self, "_data", None) == data and family == self._family and radius == self._radius:

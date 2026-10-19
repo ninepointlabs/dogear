@@ -81,7 +81,55 @@ class TestParser(unittest.TestCase):
     def test_missing_theme_falls_back(self):
         data = resolve(self.current / "nope")
         self.assertEqual(data.source, "fallback")
+        self.assertTrue(data.is_dark)
         self.assertEqual(len(data.highlights), 5)
+
+    def test_missing_theme_follows_light_preference(self):
+        data = resolve(self.current / "nope", prefer_light=True)
+        self.assertEqual(data.source, "fallback")
+        self.assertFalse(data.is_dark)
+        self.assertEqual(data.colors["bg"].hex(), "#e1e2e7")
+        self.assertEqual(len(data.highlights), 5)
+
+    def test_light_preference_never_overrides_omarchy(self):
+        write_theme(self.current, DARK, "forge")
+        data = resolve(self.current / "theme", prefer_light=True)
+        self.assertEqual(data.source, "omarchy")
+        self.assertTrue(data.is_dark)
+
+
+@unittest.skipUnless(HAVE_QT, "PySide6 not installed")
+class TestThemeDir(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        root = Path(self._tmp.name)
+        self._saved = {k: os.environ.get(k) for k in ("XDG_STATE_HOME", "XDG_CONFIG_HOME", "DOGEAR_THEME_DIR")}
+        os.environ.pop("DOGEAR_THEME_DIR", None)
+        os.environ["XDG_STATE_HOME"] = str(root / "state")
+        os.environ["XDG_CONFIG_HOME"] = str(root / "config")
+        self.current = root / "state" / "omarchy" / "current" / "theme"
+        self.legacy = root / "config" / "omarchy" / "current" / "theme"
+
+    def tearDown(self):
+        for k, v in self._saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+        self._tmp.cleanup()
+
+    def test_state_dir_when_nothing_exists(self):
+        from dogear.theme.theme import current_theme_dir
+
+        self.assertEqual(current_theme_dir(), self.current)
+
+    def test_legacy_config_dir(self):
+        from dogear.theme.theme import current_theme_dir
+
+        self.legacy.mkdir(parents=True)
+        self.assertEqual(current_theme_dir(), self.legacy)
+        self.current.mkdir(parents=True)
+        self.assertEqual(current_theme_dir(), self.current)
 
 
 @unittest.skipUnless(HAVE_QT, "PySide6 not installed")

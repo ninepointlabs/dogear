@@ -1,0 +1,146 @@
+# Builds the Dogear AppImage and attaches it to GitHub releases, next to the
+# Arch package (which this workflow never touches).
+#
+# - release published: build from the release tag, attach
+#   dogear-<version>-x86_64.AppImage, .AppImage.zsync and .AppImage.sha256.
+# - workflow_dispatch with a tag: backfill an existing release. Builds the
+#   branch you run it from (default main), whose version must match the tag.
+# - pull requests touching the app or its packaging: build and test only,
+#   and print what a release would upload.
+name: AppImage
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to attach the AppImage to (e.g. v0.1.0)"
+        required: true
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "packaging/**"
+      - "tools/make_sample_pdf.py"
+      - "pyproject.toml"
+      - ".github/workflows/appimage.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: appimage-${{ github.ref }}-${{ inputs.tag || github.event.release.tag_name || '' }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Old base on purpose: keeps the AppImage's glibc needs low.
+    runs-on: ubuntu-22.04
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || '' }}
+
+      - name: Install build and test tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends $(sed 's/#.*//' packaging/appimage/apt-packages.txt)
+
+      - name: Check the tag matches the version
+        if: env.TAG != ''
+        run: |
+          version="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/dogear/__init__.py)"
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::Tag $TAG does not match the source version $version"
+            exit 1
+          fi
+
+      - name: Build
+        run: packaging/appimage/build.sh
+
+      - name: Smoke test
+        run: packaging/appimage/smoke.sh dist/dogear-*-x86_64.AppImage
+
+      - name: appimagelint (glibc/libstdc++ compatibility report)
+        # Informational: its icon check does not know the 24px hicolor size
+        # and cannot size an SVG with only a viewBox.
+        # It FUSE-mounts the AppImage it checks (fusermount3 from fuse3), and
+        # runs extracted itself so that mount isn't told to extract instead.
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          sudo apt-get install -y -qq --no-install-recommends fuse3
+          url=https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
+          sha=61dc4ec2d5697249644bb559ac917bd60196bc2eebb9752582f976f717ab7869
+          curl -fsSL -o "$RUNNER_TEMP/appimagelint.AppImage" "$url"
+          echo "$sha  $RUNNER_TEMP/appimagelint.AppImage" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/appimagelint.AppImage"
+          (cd "$RUNNER_TEMP" && ./appimagelint.AppImage --appimage-extract >/dev/null)
+          "$RUNNER_TEMP/squashfs-root/AppRun" dist/dogear-*-x86_64.AppImage > "$RUNNER_TEMP/lint.log" 2>&1 || true
+          grep -E '\[(✔|✖)\]|required version' "$RUNNER_TEMP/lint.log" | sed 's/^appimagelint\.//' \
+            || { tail -n 20 "$RUNNER_TEMP/lint.log"; exit 1; }
+
+      - name: What a release would upload (pull requests)
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName 2>/dev/null || echo '<none>')"
+          echo "Latest release: $latest"
+          echo "Its assets now (kept as they are):"
+          gh release view "$latest" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' 2>/dev/null | sed 's/^/  /' || true
+          echo "A release would add (gh release upload --clobber, nothing deleted):"
+          ls -1 dist/ | sed 's/^/  + /'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: dist/
+          if-no-files-found: error
+
+  upload:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: appimage
+          path: dist
+
+      - name: Attach to the release (additive)
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          gh release view "$TAG" --repo "$repo" --json assets -q '.assets[].name' | sort > before.txt
+          echo "Assets before:"; sed 's/^/  /' before.txt
+
+          files=(dist/dogear-*-x86_64.AppImage dist/dogear-*-x86_64.AppImage.zsync dist/dogear-*-x86_64.AppImage.sha256)
+
+          # Keep a release-wide SHA256SUMS current if the release has one:
+          # replace only our files' lines, keep everyone else's.
+          if grep -qx SHA256SUMS before.txt; then
+            gh release download "$TAG" --repo "$repo" --pattern SHA256SUMS --dir sums
+            (cd dist && sha256sum dogear-*-x86_64.AppImage dogear-*-x86_64.AppImage.zsync) > ours.txt
+            grep -vF -f <(awk '{print $2}' ours.txt) sums/SHA256SUMS > dist/SHA256SUMS || true
+            cat ours.txt >> dist/SHA256SUMS
+            files+=(dist/SHA256SUMS)
+          fi
+
+          gh release upload "$TAG" --repo "$repo" --clobber "${files[@]}"
+
+          gh release view "$TAG" --repo "$repo" --json assets -q '.assets[].name' | sort > after.txt
+          echo "Assets after:"; sed 's/^/  /' after.txt
+          missing="$(comm -23 before.txt after.txt)"
+          if [ -n "$missing" ]; then
+            echo "::error::Assets disappeared: $missing"
+            exit 1
+          fi

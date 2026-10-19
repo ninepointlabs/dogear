@@ -8,7 +8,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import APP_ID, APP_NAME, COPYRIGHT, CREATED, LICENSE_NAME, ORGANIZATION, SUPPORT_EMAIL, TAGLINE, __version__
+from . import APP_ID, APP_NAME, COPYRIGHT, CREATED, LICENSE_NAME, ORGANIZATION, SUPPORT_EMAIL, TAGLINE, __version__, hostenv
 
 HERE = Path(__file__).resolve().parent
 
@@ -18,6 +18,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("file", nargs="?", help="PDF to open")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     parser.add_argument("--debug", action="store_true", help="verbose logging")
+    # Packaging check (AppImage CI): start the full UI, open the file if
+    # given, report, quit; non-zero exit on QML errors or a failed open.
+    parser.add_argument("--self-test", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -114,6 +117,9 @@ def create(argv0: str = APP_ID):
 
 
 def main(argv: list[str] | None = None) -> int:
+    # From the AppImage: programs we start (xdg-open, fc-match, hyprctl) must
+    # not see the AppImage runtime's variables.
+    hostenv.restore()
     args = _parse_args(sys.argv[1:] if argv is None else argv)
     logging.basicConfig(
         level=logging.DEBUG if args.debug else logging.INFO,
@@ -121,6 +127,10 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     from PySide6.QtCore import QTimer
+
+    qml_errors: list[str] = []
+    if args.self_test:
+        _collect_qml_errors(qml_errors)
 
     app, engine, doc = create()
     if engine is None:
@@ -142,7 +152,50 @@ def main(argv: list[str] | None = None) -> int:
 
         QTimer.singleShot(int(os.environ.get("DOGEAR_SCREENSHOT_DELAY", "2000")), grab)
 
+    if args.self_test:
+        QTimer.singleShot(int(os.environ.get("DOGEAR_SELF_TEST_DELAY", "1500")),
+                          lambda: app.exit(_self_test_report(app, engine, doc, args.file, qml_errors)))
+
     return app.exec()
+
+
+def _collect_qml_errors(errors: list[str]) -> None:
+    """Record QML warnings (missing modules, plugins, type errors), still printing everything."""
+    from PySide6.QtCore import QtMsgType, qFormatLogMessage, qInstallMessageHandler
+
+    def handler(mode, context, message):
+        print(qFormatLogMessage(mode, context, message), file=sys.stderr, flush=True)
+        qml = (context.category or "").startswith(("qml", "js")) or ".qml" in message
+        if mode != QtMsgType.QtDebugMsg and mode != QtMsgType.QtInfoMsg and qml:
+            errors.append(message)
+
+    qInstallMessageHandler(handler)
+
+
+def _self_test_report(app, engine, doc, file: str | None, qml_errors: list[str]) -> int:
+    from PySide6.QtGui import QDesktopServices, QGuiApplication
+
+    from .theme.theme import Theme
+
+    win = engine.rootObjects()[0]
+    theme = Theme(watch=False)
+    print(
+        f"self-test: platform={QGuiApplication.platformName()} app_id={QGuiApplication.desktopFileName()} "
+        f"visible={win.isVisible()} theme={theme.source}/{'dark' if theme.isDark else 'light'} "
+        f"radius={theme.radius} pdf_pages={doc.pageCount if doc.loaded else '-'}",
+        flush=True,
+    )
+    # CI points this at a fake xdg-open to check what child processes inherit.
+    url = os.environ.get("DOGEAR_SELF_TEST_URL")
+    if url:
+        from PySide6.QtCore import QUrl
+
+        QDesktopServices.openUrl(QUrl(url))
+    for message in qml_errors:
+        print(f"self-test: QML problem: {message}", flush=True)
+    ok = win.isVisible() and not qml_errors and (not file or doc.loaded)
+    print(f"self-test: {'OK' if ok else 'FAILED'}", flush=True)
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":

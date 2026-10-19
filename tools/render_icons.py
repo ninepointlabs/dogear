@@ -16,10 +16,11 @@ SVG = ROOT / "packaging" / "icons" / "hicolor" / "scalable" / "apps" / "dogear.s
 def main() -> int:
     app = QGuiApplication(sys.argv[:1])  # noqa: F841
     icon = QIcon(str(SVG))
-    for size in (16, 32, 48, 64, 128, 256, 512):
+    for size in (16, 24, 32, 48, 64, 128, 256, 512):
         out = ROOT / "packaging" / "icons" / "hicolor" / f"{size}x{size}" / "apps" / "dogear.png"
         out.parent.mkdir(parents=True, exist_ok=True)
-        if not icon.pixmap(QSize(size, size)).save(str(out)):
+        # Exact pixels, whatever the display scale of the session running this.
+        if not icon.pixmap(QSize(size, size), 1.0).save(str(out)):
             print(f"failed: {out}", file=sys.stderr)
             return 1
         print(out.relative_to(ROOT))

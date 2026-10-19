@@ -43,6 +43,32 @@ FALLBACK_COLORS: dict[str, str] = {
     "bright_magenta": "#bb9af7",
 }
 
+# Tokyo Night Day, used instead when there is no Omarchy theme and the
+# desktop asks for light colors (freedesktop color-scheme preference).
+FALLBACK_LIGHT_COLORS: dict[str, str] = {
+    "accent": "#2e7de9",
+    "selection": "#b7c1e3",
+    "muted": "#848cb5",
+    "background": "#e1e2e7",
+    "dark_background": "#d0d5e3",
+    "darker_background": "#c4c8da",
+    "lighter_background": "#e9e9ec",
+    "foreground": "#3760bf",
+    "red": "#f52a65",
+    "yellow": "#8c6c3e",
+    "orange": "#b15c00",
+    "green": "#587539",
+    "cyan": "#007197",
+    "blue": "#2e7de9",
+    "magenta": "#9854f1",
+    "bright_red": "#ff4774",
+    "bright_yellow": "#a27629",
+    "bright_green": "#5c8524",
+    "bright_cyan": "#007ea8",
+    "bright_blue": "#358aff",
+    "bright_magenta": "#a463ff",
+}
+
 # Defaults mirror /usr/share/omarchy/shell/Commons/Style.qml.
 FALLBACK_CONTROLS: dict[str, float] = {
     "normal-fill-alpha": 0.04,
@@ -146,7 +172,8 @@ def _first_saturated(candidates: list[Rgba], fallback: Rgba) -> Rgba:
     return fallback
 
 
-def resolve(theme_dir: Path | None) -> ThemeData:
+def resolve(theme_dir: Path | None, prefer_light: bool = False) -> ThemeData:
+    """prefer_light picks the light fallback when there is no Omarchy theme."""
     colors_raw: dict = {}
     shell: dict = {}
     name = "fallback"
@@ -161,6 +188,8 @@ def resolve(theme_dir: Path | None) -> ThemeData:
     source = "omarchy" if colors_raw else "fallback"
     if not colors_raw:
         name = "fallback"
+        if prefer_light:
+            colors_raw = dict(FALLBACK_LIGHT_COLORS)
 
     bg = _pick(colors_raw, "background")
     fg = _pick(colors_raw, "foreground")

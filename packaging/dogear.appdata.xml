@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata. Software centres, Gear Lever and AppImageLauncher read it. -->
+<component type="desktop-application">
+  <id>com.ninepointlabs.dogear</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Dogear</name>
+  <summary>Read, highlight and remember your PDFs</summary>
+  <developer id="com.ninepointlabs">
+    <name>Nine Point Labs</name>
+  </developer>
+  <description>
+    <p>
+      Dogear is a PDF reader for studying. It does what you would do to a paper
+      textbook: highlight in several colors, write notes next to what you highlighted,
+      bookmark pages, fill in the blanks on worksheets and keep general notes about the
+      document. When you are done, export everything to Markdown.
+    </p>
+    <ul>
+      <li>A library of every PDF you have opened, searchable by title, folder and the text of your marks</li>
+      <li>Highlights in five colors, with notes in the sidebar and the page margin</li>
+      <li>Answer lines: click a blank line in a worksheet and type</li>
+      <li>Named bookmarks and the PDF's own table of contents</li>
+      <li>Remembers the page, scroll position and zoom for each file</li>
+      <li>Keeps the library in one folder you can sync between computers</li>
+      <li>Never modifies your PDFs; no network access, no telemetry</li>
+    </ul>
+    <p>
+      Built for Omarchy, where it follows the desktop theme live. On other desktops it
+      uses its own light or dark colors, following the system preference.
+    </p>
+  </description>
+  <launchable type="desktop-id">dogear.desktop</launchable>
+  <provides>
+    <binary>dogear</binary>
+  </provides>
+  <url type="homepage">https://dogear.ninepointlabs.com</url>
+  <url type="bugtracker">https://github.com/ninepointlabs/dogear/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>A handout with two highlighted passages and the highlights sidebar</caption>
+      <image type="source" width="1920" height="1080">https://dogear.ninepointlabs.com/images/hero.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>A worksheet with its blanks filled in</caption>
+      <image type="source" width="1920" height="1080">https://dogear.ninepointlabs.com/images/answers.webp</image>
+    </screenshot>
+    <screenshot>
+      <caption>The library, searched by the text of your marks</caption>
+      <image type="source" width="1920" height="1080">https://dogear.ninepointlabs.com/images/library.webp</image>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>Office</category>
+    <category>Viewer</category>
+  </categories>
+  <keywords>
+    <keyword>pdf</keyword>
+    <keyword>reader</keyword>
+    <keyword>highlight</keyword>
+    <keyword>annotate</keyword>
+    <keyword>study</keyword>
+  </keywords>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <releases>
+    <release version="0.1.0" date="2026-10-17">
+      <url type="details">https://github.com/ninepointlabs/dogear/releases/tag/v0.1.0</url>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

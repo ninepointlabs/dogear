@@ -48,6 +48,8 @@ stable over 3 consecutive runs) and by a short run on the real Hyprland session.
 
 - **AppImage for other distros** (added after v0.1, branch `feat/appimage-release`): `dogear-<version>-x86_64.AppImage` (about 52 MB) with its own Python 3.12 and PySide6 6.12 (QtPdf from the `PySide6-Pdf` wheel), built on Ubuntu 22.04 by `packaging/appimage/build.sh` (`tools/build-appimage.sh` runs it in Docker) and attached to each release by `.github/workflows/appimage.yml`, next to the Arch package. The build runs the whole test suite on the bundled Python and Qt; `packaging/appimage/smoke.sh` checks the desktop file, AppStream file, icons, a start under X11 and offscreen that renders a PDF, the window class, a start without Omarchy or Hyprland, that child programs don't inherit AppImage variables, and `--install-desktop-entry`/`--remove-desktop-entry`. Started and rendered a PDF on Debian 12, Fedora 39, openSUSE Leap 15.6 and Arch containers, and on this Omarchy machine (Wayland, `class:dogear`, Omarchy theme). Without an Omarchy theme Dogear now picks a light or dark Tokyo Night palette from the desktop's color-scheme preference (it was always dark), and it also reads the theme from the older `~/.config/omarchy/current/theme`.
 
+- **Release 0.1.1**: the About dialog, the narrow-window layout and the light/dark palette off Omarchy, with the Arch package built by `makepkg` from the `v0.1.1` tarball in a clean `archlinux:latest` container as for 0.1.0, and the AppImage attached by `.github/workflows/appimage.yml`.
+
 ## What doesn't (yet)
 
 - **Highlights can't cross pages.** A drag that leaves the page selects to the end of the starting page. Highlight each page separately.

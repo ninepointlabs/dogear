@@ -67,15 +67,21 @@ jobs:
       - name: appimagelint (glibc/libstdc++ compatibility report)
         # Informational: its icon check does not know the 24px hicolor size
         # and cannot size an SVG with only a viewBox.
+        # It FUSE-mounts the AppImage it checks (fusermount3 from fuse3), and
+        # runs extracted itself so that mount isn't told to extract instead.
         continue-on-error: true
         run: |
+          set -o pipefail
+          sudo apt-get install -y -qq --no-install-recommends fuse3
           url=https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
           sha=61dc4ec2d5697249644bb559ac917bd60196bc2eebb9752582f976f717ab7869
-          curl -fsSL -o "$RUNNER_TEMP/appimagelint" "$url"
-          echo "$sha  $RUNNER_TEMP/appimagelint" | sha256sum -c -
-          chmod +x "$RUNNER_TEMP/appimagelint"
-          APPIMAGE_EXTRACT_AND_RUN=1 "$RUNNER_TEMP/appimagelint" dist/dogear-*-x86_64.AppImage 2>&1 \
-            | grep -E '\[(✔|✖)\]|required version' | sed 's/^appimagelint\.//'
+          curl -fsSL -o "$RUNNER_TEMP/appimagelint.AppImage" "$url"
+          echo "$sha  $RUNNER_TEMP/appimagelint.AppImage" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/appimagelint.AppImage"
+          (cd "$RUNNER_TEMP" && ./appimagelint.AppImage --appimage-extract >/dev/null)
+          "$RUNNER_TEMP/squashfs-root/AppRun" dist/dogear-*-x86_64.AppImage > "$RUNNER_TEMP/lint.log" 2>&1 || true
+          grep -E '\[(✔|✖)\]|required version' "$RUNNER_TEMP/lint.log" | sed 's/^appimagelint\.//' \
+            || { tail -n 20 "$RUNNER_TEMP/lint.log"; exit 1; }
 
       - name: What a release would upload (pull requests)
         if: github.event_name == 'pull_request'

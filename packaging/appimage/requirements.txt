@@ -1,0 +1,9 @@
+# Bundled into the AppImage (x86_64). PySide6 6.12 ships QtPdf as its own
+# wheel, so PySide6-Addons (WebEngine, 3D, Multimedia...) is not needed.
+# Wheels are manylinux_2_34: glibc 2.34+ (Ubuntu 22.04, Debian 12, Fedora 35+).
+PySide6-Essentials==6.12.0 \
+    --hash=sha256:16f4b5e41daf49235ae048458243da9efe5f3d8040f9cc5aa454ce69893d3bd9
+PySide6-Pdf==6.12.0.140 \
+    --hash=sha256:0c94370b6b9d65fbfe54f9d6d25df0677db0cdcfd0a842a63958a3603a42007c
+shiboken6==6.12.0 \
+    --hash=sha256:3bde565bb0890044b5c7f63808adddede5abc241e9395a2bfed61919884d6240

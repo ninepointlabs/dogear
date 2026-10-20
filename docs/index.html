@@ -155,13 +155,14 @@
   }
   .code-block .comment { color: var(--ink-faint); }
   .code-block .prompt { color: var(--hl); }
-  .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 8px; }
+  /* minmax(0, ...) and min-width: 0 keep the columns inside .wrap whatever the code says; long lines scroll in their box.
+     The wider first column gives the autonomix-cli line room on desktop. */
+  .install-grid { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: 20px; margin-top: 8px; }
+  .install-grid > * { min-width: 0; }
   .install-card { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; padding: 22px 24px; }
   .install-card h3 { font-family: var(--display); font-size: 19px; color: var(--hl-bright); margin: 0 0 6px; font-weight: 600; }
   .install-card p { margin: 0 0 4px; color: var(--ink-dim); font-size: 16px; }
   .install-card .code-block { margin: 14px 0 0; padding: 14px 16px; font-size: 13px; }
-  /* Below 1040px the two columns can't fit their code blocks: let them shrink so code scrolls in its box. */
-  @media (max-width: 1040px) { .install-grid > * { min-width: 0; } }
   @media (max-width: 860px) {
     .install-grid { grid-template-columns: 1fr; }
     .install-card code { overflow-wrap: anywhere; }
@@ -384,7 +385,7 @@
         <p>Download <code>dogear-*-any.pkg.tar.zst</code> from the <a href="https://github.com/ninepointlabs/dogear/releases/latest">latest release</a>, then:</p>
         <div class="code-block"><span class="prompt">$</span> sudo pacman -U dogear-*-any.pkg.tar.zst</div>
       </div>
-      <div class="install-card" style="grid-column: 1 / -1; min-width: 0;">
+      <div class="install-card" style="grid-column: 1 / -1;">
         <h3>Other Linux distros (AppImage)</h3>
         <p>One file with its own Python and Qt, for x86_64 distros with glibc 2.34 or newer: Ubuntu 22.04, Debian 12, Fedora 39 and newer. Download <code>dogear-0.1.1-x86_64.AppImage</code> from the <a href="https://github.com/ninepointlabs/dogear/releases/latest">latest release</a>, then:</p>
         <div class="code-block"><span class="prompt">$</span> chmod +x dogear-0.1.1-x86_64.AppImage

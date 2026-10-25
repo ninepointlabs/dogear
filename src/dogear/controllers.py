@@ -71,6 +71,12 @@ class DocumentController(QObject):
         self._search_timer.timeout.connect(self._collect_search)
         for sig in (self._search.rowsInserted, self._search.modelReset, self._search.rowsRemoved):
             sig.connect(lambda *_: self._search_timer.start())
+        # Qt's search model looks at one page every 100 ms on its own. Asking
+        # for each page's results searches it at once, so the whole document
+        # is searched in a few short steps and we know when it is finished.
+        self._search_next_page = 0
+        self._search_step = QTimer(self, interval=0)
+        self._search_step.timeout.connect(self._search_pages)
 
         self._view_timer = QTimer(self, singleShot=True, interval=800)
         self._view_timer.timeout.connect(self._persist)
@@ -291,6 +297,29 @@ class DocumentController(QObject):
         if self._ann is None or not 0 <= page < len(self._page_sizes):
             return ""
         return self._pdf.pageLabel(page) or str(page + 1)
+
+    @Property(bool, notify=loadedChanged)
+    def hasPageLabels(self) -> bool:
+        """The PDF numbers its pages its own way (i, ii, ... then 1, 2, ...)."""
+        return any(self.pageLabel(i) != str(i + 1) for i in range(len(self._page_sizes)))
+
+    @Slot(str, result=int)
+    def findPage(self, text: str) -> int:
+        """The page "Go to page" means, or -1. The PDF's own page label wins,
+        so "5" is the page printed 5; a number no page is labeled with is
+        the page's place in the file."""
+        text = text.strip()
+        if not text or self._ann is None:
+            return -1
+        labels = [self.pageLabel(i) for i in range(len(self._page_sizes))]
+        if text in labels:
+            return labels.index(text)
+        folded = [label.casefold() for label in labels]
+        if text.casefold() in folded:  # "IV" for "iv"
+            return folded.index(text.casefold())
+        if text.isdigit() and 1 <= int(text) <= len(labels):
+            return int(text) - 1
+        return -1
 
     @Slot(int, result="QVariantList")
     def highlightsOnPage(self, page: int) -> list[dict]:
@@ -647,8 +676,25 @@ class DocumentController(QObject):
         self._search_term = term
         self._search_results = []
         self._search.setSearchString(term)
+        self._search_next_page = 0
+        if term and self._pdf.pageCount() > 0:
+            self._search_step.start()
+        else:
+            self._search_step.stop()
         self.searchChanged.emit()
         self._search_timer.start()
+
+    def _search_pages(self) -> None:
+        count = self._pdf.pageCount()
+        end = min(self._search_next_page + 25, count)
+        for page in range(self._search_next_page, end):
+            self._search.resultsOnPage(page)
+        self._search_next_page = end
+        if end >= count:
+            self._search_step.stop()
+            self._search_timer.stop()
+            self._collect_search()
+            self.searchChanged.emit()
 
     def _collect_search(self) -> None:
         results = []
@@ -669,6 +715,8 @@ class DocumentController(QObject):
 
     searchTerm = Property(str, lambda self: self._search_term, notify=searchChanged)
     searchResults = Property("QVariantList", lambda self: self._search_results, notify=searchChanged)
+    # Still looking through the pages: "No matches" would be premature.
+    searching = Property(bool, lambda self: self._search_step.isActive(), notify=searchChanged)
 
     # -- export
     @Slot(result=str)

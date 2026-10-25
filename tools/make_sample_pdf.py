@@ -1,7 +1,9 @@
 """Generate a small multi-page sample PDF with an outline, for development and tests.
 
 Uses Ghostscript (pdfmark for the outline). Usage:
-    python tools/make_sample_pdf.py out.pdf [pages]
+    python tools/make_sample_pdf.py out.pdf [pages] [roman]
+
+[roman] labels the first pages i, ii, ... and the rest 1, 2, ...
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ WORKSHEET = [
 ]
 
 
-def build_ps(pages: int) -> str:
+def build_ps(pages: int, roman: int = 0) -> str:
     out = ["%!PS-Adobe-3.0", "/Helvetica findfont 12 scalefont setfont"]
     chapters = []
     for p in range(1, pages + 1):
@@ -60,15 +62,19 @@ def build_ps(pages: int) -> str:
         out.append(f"[ /Title {_ps_string(f'Chapter {p}: Topic {p}')} /Page {p} /OUT pdfmark")
         out.append("showpage")
     out.append("[ /Title (Dogear sample) /DOCINFO pdfmark")
+    if roman:
+        # Page labels like a book's: i, ii, ... then 1, 2, ...
+        out.append(f"[ {{Catalog}} << /PageLabels << /Nums [ 0 << /S /r >> {roman} << /S /D >> ] >> >> /PUT pdfmark")
     return "\n".join(out) + "\n"
 
 
 def main() -> int:
     target = Path(sys.argv[1] if len(sys.argv) > 1 else "sample.pdf")
     pages = int(sys.argv[2]) if len(sys.argv) > 2 else 6
+    roman = int(sys.argv[3]) if len(sys.argv) > 3 else 0
     with tempfile.TemporaryDirectory() as tmp:
         ps = Path(tmp) / "sample.ps"
-        ps.write_text(build_ps(pages))
+        ps.write_text(build_ps(pages, roman))
         subprocess.run(
             # Letter, always: Ghostscript's default paper follows the
             # system (A4 in many places), and the tests click by position.

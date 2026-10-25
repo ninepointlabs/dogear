@@ -520,6 +520,83 @@ class UiSmokeTest(unittest.TestCase):
             self.window.resize(1200, 900)
             self.wait(200)
 
+    def test_reader_words_labels_search(self):
+        """Double-click selects a word; Go to page prefers the PDF's page
+        labels; search says it's searching before it says "No matches"."""
+        labeled = Path(self._tmp.name) / "labeled.pdf"
+        subprocess.run([sys.executable, str(ROOT / "tools" / "make_sample_pdf.py"), str(labeled), "12", "4"],
+                       check=True, capture_output=True)
+        self.assertTrue(self.doc.open(str(labeled)))
+        self.wait_for(lambda: self.page_view() is not None and self.page_view().property("ready"), msg="view ready")
+        self.wait(200)
+
+        # Labels i–iv, then 1–8. A label wins over a position; a number
+        # no page is labeled with is the page's place in the file.
+        self.assertTrue(self.doc.property("hasPageLabels"))
+        self.assertEqual(self.doc.findPage("5"), 8)
+        self.assertEqual(self.doc.findPage("iv"), 3)
+        self.assertEqual(self.doc.findPage("IV"), 3)
+        self.assertEqual(self.doc.findPage("12"), 11)
+        self.assertEqual(self.doc.findPage("13"), -1)
+        self.assertEqual(self.doc.findPage("x"), -1)
+        self.page_view().forceActiveFocus()
+        self.key(Qt.Key.Key_G, Qt.KeyboardModifier.ControlModifier)
+        self.wait(200)
+        self.type_text("5")
+        self.key(Qt.Key.Key_Return)
+        self.wait(300)
+        self.assertEqual(self.page_view().property("currentPage"), 8)
+        indicator = self.window.findChild(QQuickItem, "pageIndicator")
+        self.assertEqual(indicator.property("text"), "Page 5 (9 of 12)")
+
+        # Double-click a word: it stays selected after the second release.
+        word = self.doc.wordAt(8, 80, 99)
+        self.assertTrue(word["text"])
+        QTest.mouseDClick(self.window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                          self.pt_to_window(8, 80, 99))
+        self.wait()
+        sel = self.page_view().property("selection")
+        sel = sel.toVariant() if hasattr(sel, "toVariant") else sel
+        self.assertTrue(sel, "double-click left no selection")
+        self.assertEqual(sel["text"], word["text"])
+        self.assertEqual(sel["page"], 8)
+        # A single click elsewhere still clears it.
+        self.wait(QGuiApplication.styleHints().mouseDoubleClickInterval() + 50)
+        QTest.mouseClick(self.window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         self.pt_to_window(8, 400, 300))
+        self.wait()
+        sel = self.page_view().property("selection")
+        self.assertFalse(sel.toVariant() if hasattr(sel, "toVariant") else sel)
+
+        # A click on a Contents entry goes to its page.
+        self.key(Qt.Key.Key_1, Qt.KeyboardModifier.ControlModifier)
+        self.wait(300)
+        outline = self.window.findChild(QQuickItem, "outlineList")
+        self.assertTrue(outline.isVisible())
+        rows = [i for i in outline.property("contentItem").childItems() if i.property("modelData")]
+        target = next(r for r in rows if r.property("modelData")["title"] == "Chapter 3: Topic 3")
+        centre = target.mapToScene(QPointF(target.width() / 2, target.height() / 2))
+        QTest.mouseClick(self.window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         QPoint(round(centre.x()), round(centre.y())))
+        self.wait(400)
+        self.assertEqual(self.page_view().property("currentPage"), 2)
+        self.key(Qt.Key.Key_Backslash, Qt.KeyboardModifier.ControlModifier)  # sidebar closed again
+        self.wait(200)
+
+        # Search: "Searching…" until every page has been looked at.
+        status = self.window.findChild(QQuickItem, "searchStatus")
+        self.doc.setSearch("nowhere-to-be-found")
+        self.assertTrue(self.doc.property("searching"))
+        self.assertEqual(status.property("text"), "Searching…")
+        self.wait_for(lambda: not self.doc.property("searching"), msg="search finished")
+        self.assertEqual(status.property("text"), "No matches")
+        self.doc.setSearch("Chapter 12")
+        self.wait_for(lambda: not self.doc.property("searching"), msg="search finished")
+        self.assertEqual([r["page"] for r in self.doc.searchResults], [11])
+        self.doc.setSearch("")
+        self.assertFalse(self.doc.property("searching"))
+        self.doc.close()
+
     def test_sync_flow(self):
         """Runs last (alphabetical order): the library folder shared with
         another computer, and moving it from Settings."""

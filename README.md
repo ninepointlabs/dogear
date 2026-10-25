@@ -136,7 +136,7 @@ Vim-style keys for reading. Press `F1` or `?` to see this list in the app.
 | `Space`, `Shift+Space`, `PgDn`, `PgUp` | Down or up one screen |
 | `J` `K` | Next or previous page |
 | `g` `G`, `Home` `End` | First or last page |
-| `Ctrl+G` | Go to a page (number or the PDF's page label) |
+| `Ctrl+G` | Go to a page. The PDF's own page label wins (`5` is the page printed 5, `iv` works too); a number no page is labeled with is the page's place in the file |
 | `+` `-`, `Ctrl+=` `Ctrl+-`, `Ctrl`+wheel | Zoom |
 | `0`, `Ctrl+0` | Fit width |
 | `Alt+←`, `Backspace` | Back to where you were before a jump |

@@ -192,6 +192,8 @@ Item {
 
         property var start: null
         property bool dragging: false
+        // A double-click's word selection, made before its second release.
+        property bool wordPicked: false
 
         onExited: { page.pageView.hoverHighlight(null); page.blank = null }
         onPressed: m => {
@@ -200,6 +202,7 @@ Item {
             page.pageView.forceActiveFocus(Qt.MouseFocusReason)
             start = page.toPt(m.x, m.y)
             dragging = false
+            wordPicked = false
         }
         onPositionChanged: m => {
             const p = page.toPt(m.x, m.y)
@@ -226,6 +229,12 @@ Item {
         }
         onReleased: m => {
             page.pageView.selecting = false
+            if (wordPicked) {
+                // Keep the word the double-click just selected.
+                wordPicked = false
+                if (page.pageView.selection) page.pageView.selectionMade()
+                return
+            }
             if (dragging) {
                 dragging = false
                 if (page.pageView.selection) page.pageView.selectionMade()
@@ -252,7 +261,9 @@ Item {
         onDoubleClicked: m => {
             const p = page.toPt(m.x, m.y)
             const w = Doc.wordAt(page.index, p.x, p.y)
-            if (w.text && w.rects.length) page.pageView.selection = { page: page.index, rects: w.rects, text: w.text }
+            if (!w.text || !w.rects.length) return
+            page.pageView.selection = { page: page.index, rects: w.rects, text: w.text }
+            wordPicked = true
         }
     }
 

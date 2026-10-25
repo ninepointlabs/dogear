@@ -41,14 +41,11 @@ Item {
         if (!sidebarOpen) focusPages()
     }
     function goToPagePrompt() {
-        prompt.ask("Go to page (1–" + Doc.pageCount + ")", String(pages.currentPage + 1), value => {
-            const n = parseInt(value, 10)
-            if (!isNaN(n)) pages.goToPage(n - 1, 0, true)
-            else {
-                // Accept the PDF's own page labels too (e.g. "iv").
-                for (let i = 0; i < Doc.pageCount; i++)
-                    if (Doc.pageLabel(i) === value.trim()) { pages.goToPage(i, 0, true); break }
-            }
+        const title = Doc.hasPageLabels ? "Go to page (as printed, " + Doc.pageLabel(0) + "–" + Doc.pageLabel(Doc.pageCount - 1) + ")"
+                                        : "Go to page (1–" + Doc.pageCount + ")"
+        prompt.ask(title, Doc.pageLabel(pages.currentPage), value => {
+            const p = Doc.findPage(value)
+            if (p >= 0) pages.goToPage(p, 0, true)
         }, focusPages)
     }
     function addBookmark() {
@@ -132,7 +129,12 @@ Item {
                     font.weight: Font.DemiBold
                 }
                 DgButton {
-                    text: (reader.narrow ? "" : "Page ") + Doc.pageLabel(pages.currentPage) + " / " + Doc.pageCount
+                    objectName: "pageIndicator"
+                    // With the PDF's own labels, the label alone is not a
+                    // place in the file: "Page 8 (12 of 12)".
+                    text: (reader.narrow ? "" : "Page ") + (Doc.hasPageLabels
+                        ? Doc.pageLabel(pages.currentPage) + " (" + (pages.currentPage + 1) + " of " + Doc.pageCount + ")"
+                        : (pages.currentPage + 1) + " / " + Doc.pageCount)
                     variant: "ghost"
                     hint: reader.narrow ? "" : "Ctrl+G"
                     onClicked: reader.goToPagePrompt()
@@ -202,8 +204,9 @@ Item {
                 DgText {
                     role: "small"
                     secondary: true
+                    objectName: "searchStatus"
                     text: !Doc.searchTerm ? ""
-                        : Doc.searchResults.length === 0 ? "No matches"
+                        : Doc.searchResults.length === 0 ? (Doc.searching ? "Searching…" : "No matches")
                         : pages.searchIndex < 0 ? Doc.searchResults.length + " matches"
                         : (pages.searchIndex + 1) + " of " + Doc.searchResults.length
                 }

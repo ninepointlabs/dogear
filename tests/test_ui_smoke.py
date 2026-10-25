@@ -568,6 +568,21 @@ class UiSmokeTest(unittest.TestCase):
         sel = self.page_view().property("selection")
         self.assertFalse(sel.toVariant() if hasattr(sel, "toVariant") else sel)
 
+        # A click on a Contents entry goes to its page.
+        self.key(Qt.Key.Key_1, Qt.KeyboardModifier.ControlModifier)
+        self.wait(300)
+        outline = self.window.findChild(QQuickItem, "outlineList")
+        self.assertTrue(outline.isVisible())
+        rows = [i for i in outline.property("contentItem").childItems() if i.property("modelData")]
+        target = next(r for r in rows if r.property("modelData")["title"] == "Chapter 3: Topic 3")
+        centre = target.mapToScene(QPointF(target.width() / 2, target.height() / 2))
+        QTest.mouseClick(self.window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         QPoint(round(centre.x()), round(centre.y())))
+        self.wait(400)
+        self.assertEqual(self.page_view().property("currentPage"), 2)
+        self.key(Qt.Key.Key_Backslash, Qt.KeyboardModifier.ControlModifier)  # sidebar closed again
+        self.wait(200)
+
         # Search: "Searching…" until every page has been looked at.
         status = self.window.findChild(QQuickItem, "searchStatus")
         self.doc.setSearch("nowhere-to-be-found")

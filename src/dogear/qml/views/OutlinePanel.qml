@@ -20,6 +20,7 @@ FocusScope {
 
     PanelList {
         id: list
+        objectName: "outlineList"
         anchors.fill: parent
         model: Doc.outline
         emptyText: "This PDF has no table of contents."

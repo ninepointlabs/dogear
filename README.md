@@ -31,17 +31,25 @@ to Markdown, for example straight into your Obsidian vault.
 ## Install
 
 On Arch and Omarchy, install the package from the
-[latest GitHub release](https://github.com/ninepointlabs/dogear/releases/latest). Either way
-puts Dogear in your app launcher and lets it open PDFs.
+[latest GitHub release](https://github.com/ninepointlabs/dogear/releases/latest), with
+autonomix-cli or by hand. Either way puts Dogear in your app launcher and lets it open PDFs.
 
 **With [autonomix-cli](https://github.com/ninepointlabs/autonomix-cli)**, which installs the
-package and keeps Dogear updated from GitHub Releases:
+package and keeps Dogear updated from GitHub Releases. `add` only starts tracking Dogear;
+`install` then installs it:
 
 ```sh
 autonomix-cli add https://github.com/ninepointlabs/dogear
+autonomix-cli install dogear
 ```
 
-**Or by hand**: download `dogear-*-any.pkg.tar.zst` from the release, then
+`install` runs `pacman -U` as root, so it asks for your password: through `sudo` in a
+terminal, or in a polkit (pkexec) password dialog when it runs without one. Later,
+`autonomix-cli update` installs new releases.
+
+**Or by hand**: download `dogear-*-any.pkg.tar.zst` from the release. The release page shows
+each file's SHA-256; check that it matches what `sha256sum dogear-*-any.pkg.tar.zst` prints.
+Then
 
 ```sh
 sudo pacman -U dogear-*-any.pkg.tar.zst
@@ -53,19 +61,24 @@ the Qt PDF library. `packaging/PKGBUILD` builds the same package from source wit
 
 ### Other Linux distros (AppImage)
 
-Each release also has `dogear-<version>-x86_64.AppImage`, which brings its own Python and Qt
-and runs on Ubuntu 22.04 and later, Debian 12 and later, Fedora, openSUSE Leap 15.6 and most
-other distros from 2022 on (it needs glibc 2.34 or newer). autonomix-cli (above) picks up
-AppImages too:
+Each release also has `dogear-<version>-x86_64.AppImage`, which brings its own Python and Qt.
+It needs an x86_64 distro with glibc 2.34 or newer, such as:
+
+- Ubuntu 22.04 and later
+- Debian 12 and later
+- Fedora 39 and later
+- openSUSE Leap 15.6
+- most other distros from 2022 on
+
+(This is the one list; the website links here.) autonomix-cli only installs system packages
+(`.deb`, `.rpm`, Arch), and Dogear has only the Arch one, so on other distros use the AppImage.
+
+Download the AppImage and its `.sha256` file from the
+[latest release](https://github.com/ninepointlabs/dogear/releases/latest) into the same folder,
+then
 
 ```sh
-autonomix-cli add https://github.com/ninepointlabs/dogear
-```
-
-Or by hand: download it from the
-[latest release](https://github.com/ninepointlabs/dogear/releases/latest), then
-
-```sh
+sha256sum -c dogear-*-x86_64.AppImage.sha256   # should print "OK"
 chmod +x dogear-*-x86_64.AppImage
 ./dogear-*-x86_64.AppImage [book.pdf]
 ```

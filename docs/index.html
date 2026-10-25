@@ -351,7 +351,7 @@
     <div class="principles">
       <div>
         <h3>Your PDFs are never changed</h3>
-        <p>Marks are kept beside the PDF, never written into it, and matched to it by its contents. Rename or move a file and its notes follow; nothing is ever dropped into your class folders.</p>
+        <p>Marks are kept in your Dogear library folder, never inside the PDF, and matched to it by its contents. Rename or move a file and its notes follow; nothing is ever dropped into your class folders.</p>
       </div>
       <div>
         <h3>No accounts, no network</h3>
@@ -377,18 +377,22 @@
     <div class="install-grid">
       <div class="install-card">
         <h3>With autonomix-cli</h3>
-        <p><a href="https://github.com/ninepointlabs/autonomix-cli">autonomix-cli</a> installs the package and keeps Dogear updated from GitHub Releases.</p>
-        <div class="code-block"><span class="prompt">$</span> autonomix-cli add https://github.com/ninepointlabs/dogear</div>
+        <p><a href="https://github.com/ninepointlabs/autonomix-cli">autonomix-cli</a> installs the package and keeps Dogear updated from GitHub Releases. <code>add</code> only starts tracking Dogear; <code>install</code> installs it.</p>
+        <div class="code-block"><span class="prompt">$</span> autonomix-cli add https://github.com/ninepointlabs/dogear
+<span class="prompt">$</span> autonomix-cli install dogear</div>
+        <p style="margin-top: 12px;"><code>install</code> asks for your password (through <code>sudo</code>, or a pkexec dialog when there's no terminal), since it installs the package with pacman.</p>
       </div>
       <div class="install-card">
         <h3>From the release</h3>
-        <p>Download <code>dogear-*-any.pkg.tar.zst</code> from the <a href="https://github.com/ninepointlabs/dogear/releases/latest">latest release</a>, then:</p>
-        <div class="code-block"><span class="prompt">$</span> sudo pacman -U dogear-*-any.pkg.tar.zst</div>
+        <p>Download <code>dogear-*-any.pkg.tar.zst</code> from the <a href="https://github.com/ninepointlabs/dogear/releases/latest">latest release</a>. Check that <code>sha256sum</code> prints the SHA-256 the release page shows for it, then install:</p>
+        <div class="code-block"><span class="prompt">$</span> sha256sum dogear-*-any.pkg.tar.zst
+<span class="prompt">$</span> sudo pacman -U dogear-*-any.pkg.tar.zst</div>
       </div>
       <div class="install-card" style="grid-column: 1 / -1;">
         <h3>Other Linux distros (AppImage)</h3>
-        <p>One file with its own Python and Qt, for x86_64 distros with glibc 2.34 or newer: Ubuntu 22.04, Debian 12, Fedora 39 and newer. Download <code>dogear-0.1.1-x86_64.AppImage</code> from the <a href="https://github.com/ninepointlabs/dogear/releases/latest">latest release</a>, then:</p>
-        <div class="code-block"><span class="prompt">$</span> chmod +x dogear-0.1.1-x86_64.AppImage
+        <p>One file with its own Python and Qt, for x86_64 distros with glibc 2.34 or newer (<a href="https://github.com/ninepointlabs/dogear#other-linux-distros-appimage">which distros</a>). Download <code>dogear-0.1.1-x86_64.AppImage</code> and its <code>.sha256</code> file from the <a href="https://github.com/ninepointlabs/dogear/releases/latest">latest release</a>, then:</p>
+        <div class="code-block"><span class="prompt">$</span> sha256sum -c dogear-0.1.1-x86_64.AppImage.sha256 <span class="comment"># prints OK</span>
+<span class="prompt">$</span> chmod +x dogear-0.1.1-x86_64.AppImage
 <span class="prompt">$</span> ./dogear-0.1.1-x86_64.AppImage
 <span class="prompt">$</span> ./dogear-0.1.1-x86_64.AppImage --install-desktop-entry <span class="comment"># app menu and PDFs</span></div>
         <p style="margin-top: 12px;">Or let <a href="https://flathub.org/apps/it.mijorus.gearlever">Gear Lever</a> or <a href="https://github.com/TheAssassin/AppImageLauncher">AppImageLauncher</a> add it to your menu and keep it updated.</p>

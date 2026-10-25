@@ -44,6 +44,10 @@ def create(argv0: str = APP_ID):
     from .store import AnnotationStore
     from .theme.theme import Theme
 
+    # Before the application exists: Qt registers this app id with the
+    # desktop portal as it starts, and the first id a connection uses sticks.
+    QGuiApplication.setDesktopFileName(APP_ID)
+    _set_gtk_program_name(APP_ID)
     app = QGuiApplication.instance() or QGuiApplication([argv0])
     app.setApplicationName(APP_ID)
     app.setApplicationDisplayName(APP_NAME)
@@ -116,6 +120,40 @@ def create(argv0: str = APP_ID):
     return app, engine, doc
 
 
+def _set_gtk_program_name(name: str) -> None:
+    """Name GTK's windows (the GTK file dialog behind Ctrl+O) after Dogear.
+
+    GTK takes a window's Wayland app id and X11 class from GLib's program
+    name, which otherwise comes from the process: "python3.12" in the
+    AppImage, "python3" from a checkout. Missing GLib is fine: then there is
+    no GTK dialog either.
+    """
+    import ctypes
+    import ctypes.util
+
+    try:
+        glib = ctypes.CDLL(ctypes.util.find_library("glib-2.0") or "libglib-2.0.so.0")
+        glib.g_set_prgname.argtypes = [ctypes.c_char_p]
+        glib.g_set_prgname(name.encode())
+    except (OSError, AttributeError):
+        pass
+
+
+# Qt PDF warns once per outline entry or link whose destination isn't a
+# plain position (a "fit page" one, as reportlab writes by default). Dogear
+# goes to the top of the page for those, so the warnings are only noise.
+QUIET_QT_RULES = "qt.pdf.bookmarks.warning=false\nqt.pdf.links.warning=false"
+
+
+def _quiet_qt_logging(debug: bool) -> None:
+    """Drop Qt's noisy categories unless --debug. QT_LOGGING_RULES still wins."""
+    if debug:
+        return
+    from PySide6.QtCore import QLoggingCategory
+
+    QLoggingCategory.setFilterRules(QUIET_QT_RULES)
+
+
 def main(argv: list[str] | None = None) -> int:
     # From the AppImage: programs we start (xdg-open, fc-match, hyprctl) must
     # not see the AppImage runtime's variables.
@@ -128,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from PySide6.QtCore import QTimer
 
+    _quiet_qt_logging(args.debug)
     qml_errors: list[str] = []
     if args.self_test:
         _collect_qml_errors(qml_errors)

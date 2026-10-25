@@ -90,6 +90,8 @@ FocusScope {
     // each line: no tagline or key hints, sorting under the search, and a
     // document's marks and buttons under its title, so the title always shows.
     readonly property bool narrow: width < 78 * Theme.fontBody
+    // Compact (a third of a screen): the header's buttons go under the name,
+    // the categories become a strip above the documents, and sorting wraps.
     readonly property bool compact: width < 54 * Theme.fontBody
 
     // The buttons for a document, beside it (wide) or under its title (narrow).
@@ -110,31 +112,41 @@ FocusScope {
         return parts.length ? parts.join(" · ") : "No marks yet"
     }
 
+    DgText { id: lineProbe; visible: false; text: "Ag" }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: start.compact ? Theme.spaceXl : Theme.spaceHuge
         spacing: Theme.spaceXl
 
-        RowLayout {
+        GridLayout {
             Layout.fillWidth: true
-            spacing: Theme.spaceLg
-            DgText {
-                text: AppInfo.name
-                role: "display"
-                font.weight: Font.Bold
-            }
-            DgText {
+            columns: start.compact ? 1 : 2
+            columnSpacing: Theme.spaceLg
+            rowSpacing: Theme.spaceSm
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignBaseline
-                text: start.narrow ? "" : AppInfo.tagline
-                secondary: true
+                spacing: Theme.spaceLg
+                DgText {
+                    text: AppInfo.name
+                    role: "display"
+                    font.weight: Font.Bold
+                }
+                DgText {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignBaseline
+                    text: start.narrow ? "" : AppInfo.tagline
+                    secondary: true
+                }
+                DgText {
+                    visible: !start.narrow
+                    text: "or drop a PDF here"
+                    muted: true
+                    role: "small"
+                }
             }
-            DgText {
-                visible: !start.narrow
-                text: "or drop a PDF here"
-                muted: true
-                role: "small"
-            }
+            RowLayout {
+            spacing: Theme.spaceLg
             DgButton {
                 text: "Open PDF"
                 hint: start.narrow ? "" : "Ctrl+O"
@@ -156,20 +168,27 @@ FocusScope {
                 focusPolicy: Qt.NoFocus
                 onClicked: start.aboutRequested()
             }
+            }
         }
 
-        RowLayout {
+        GridLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: Theme.spaceXl
+            columns: start.compact ? 1 : 2
+            columnSpacing: Theme.spaceXl
+            rowSpacing: Theme.spaceMd
 
             // Categories.
-            ColumnLayout {
-                Layout.preferredWidth: (start.compact ? 9 : start.narrow ? 11 : 15) * Theme.fontBody
-                Layout.maximumWidth: Layout.preferredWidth
-                Layout.fillHeight: true
-                spacing: Theme.spaceSm
+            GridLayout {
+                Layout.preferredWidth: start.compact ? -1 : (start.narrow ? 11 : 15) * Theme.fontBody
+                Layout.maximumWidth: start.compact ? Number.POSITIVE_INFINITY : Layout.preferredWidth
+                Layout.fillWidth: start.compact
+                Layout.fillHeight: !start.compact
+                columns: start.compact ? 2 : 1
+                columnSpacing: Theme.spaceSm
+                rowSpacing: Theme.spaceSm
                 DgText {
+                    visible: !start.compact
                     text: "Categories"
                     role: "subtitle"
                     font.weight: Font.DemiBold
@@ -178,7 +197,9 @@ FocusScope {
                     id: catList
                     objectName: "categoryList"
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    Layout.fillHeight: !start.compact
+                    Layout.preferredHeight: start.compact ? lineProbe.implicitHeight + 2 * Theme.spaceMd : -1
+                    orientation: start.compact ? ListView.Horizontal : ListView.Vertical
                     focus: false
                     model: start.cats
                     currentIndex: Math.max(0, start.cats.findIndex(c => c.key === start.category))
@@ -187,7 +208,10 @@ FocusScope {
                     onDone: start.focusList()
                     Keys.onPressed: event => {
                         const c = currentIndex >= 0 ? model[currentIndex] : null
-                        if (event.key === Qt.Key_Right || event.key === Qt.Key_L || event.key === Qt.Key_Tab) start.focusList()
+                        if (start.compact ? event.key === Qt.Key_Down || event.key === Qt.Key_J || event.key === Qt.Key_Tab
+                                        : event.key === Qt.Key_Right || event.key === Qt.Key_L || event.key === Qt.Key_Tab) start.focusList()
+                        else if (start.compact && event.key === Qt.Key_L) incrementCurrentIndex()
+                        else if (start.compact && event.key === Qt.Key_H) decrementCurrentIndex()
                         else if (event.key === Qt.Key_N) start.newCategory()
                         else if (c && c.user && (event.key === Qt.Key_F2 || event.key === Qt.Key_R)) start.renameCategory(c)
                         else if (c && c.user && event.key === Qt.Key_Delete) { start.category = ""; App.removeCategory(c.key) }
@@ -199,9 +223,13 @@ FocusScope {
                         required property var modelData
                         onClicked: start.category = modelData.key
                         onDoubleClicked: start.renameCategory(modelData)
+                        // In the strip, each category is as wide as its name.
+                        width: start.compact ? catRow.implicitWidth + 2 * Theme.rowPaddingX : list.width
                         RowLayout {
-                            width: parent.width
+                            id: catRow
+                            width: start.compact ? implicitWidth : parent.width
                             DgText {
+                                objectName: "categoryName"
                                 Layout.fillWidth: true
                                 text: crow.modelData.name
                                 font.italic: !crow.modelData.user
@@ -215,7 +243,7 @@ FocusScope {
                     }
                 }
                 DgButton {
-                    text: start.compact ? "New" : "New category"
+                    text: start.compact ? "+" : "New category"
                     hint: start.narrow ? "" : "n"
                     variant: "ghost"
                     focusPolicy: Qt.NoFocus
@@ -244,19 +272,25 @@ FocusScope {
                         Keys.onEnterPressed: { start.focusList(); start.openRow(list.model[0]) }
                         Keys.onEscapePressed: { text = ""; start.focusList() }
                     }
-                    Row {
+                    Flow {
+                        objectName: "librarySort"
+                        Layout.fillWidth: start.narrow
                         spacing: Theme.spaceXxs
                         DgText {
-                            anchors.verticalCenter: parent.verticalCenter
+                            visible: !start.compact
+                            height: sortButtons.count ? sortButtons.itemAt(0).height : implicitHeight
+                            verticalAlignment: Text.AlignVCenter
                             rightPadding: Theme.spaceSm
                             text: "Sort"
                             muted: true
                             role: "small"
                         }
                         Repeater {
+                            id: sortButtons
                             model: start.sorts
                             DgButton {
                                 required property var modelData
+                                objectName: "sortButton"
                                 text: modelData.name
                                 variant: start.sort === modelData.key ? "secondary" : "ghost"
                                 focusPolicy: Qt.NoFocus

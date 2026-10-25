@@ -409,6 +409,50 @@ class UiSmokeTest(unittest.TestCase):
         self.assertEqual(store.load(second_sha).categories, ["Biology"])
         self.assertEqual(self.library_rows()[0]["categories"], ["Biology"])
 
+        # Tick an existing category on the other document: a click on the box,
+        # then Enter (on the empty name field) saves and closes the dialog.
+        from PySide6.QtCore import QObject
+        lib_list = self.window.findChild(QQuickItem, "libraryList")
+        lib_list.forceActiveFocus()
+        lib_list.setProperty("currentIndex", 1)
+        self.key(Qt.Key.Key_C)
+        self.wait(200)
+        dialog = next(o for o in self.window.findChildren(QObject)
+                      if o.metaObject().className().startswith("CategoriesDialog"))
+        self.assertTrue(dialog.property("opened"))
+        def walk(item):
+            for child in item.childItems():
+                yield child
+                yield from walk(child)
+        boxes = [o for o in walk(dialog.property("contentItem"))
+                 if o.metaObject().className().startswith("DgCheckBox")]
+        self.assertEqual([b.property("text") for b in boxes], ["Biology"])
+        self.assertFalse(boxes[0].property("checked"))
+        centre = boxes[0].mapToScene(QPointF(8, boxes[0].height() / 2))
+        QTest.mouseClick(self.window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         QPoint(round(centre.x()), round(centre.y())))
+        self.wait()
+        self.assertTrue(boxes[0].property("checked"))
+        self.key(Qt.Key.Key_Return)
+        self.wait(200)
+        self.assertFalse(dialog.property("opened"), "the dialog should close on save")
+        self.assertEqual(store.load(first_sha).categories, ["Biology"])
+        # And untick it from the keyboard: Shift+Tab to the box, Space, Enter.
+        lib_list.forceActiveFocus()
+        lib_list.setProperty("currentIndex", 1)
+        self.key(Qt.Key.Key_C)
+        self.wait(200)
+        self.assertTrue(boxes[0].property("checked"))
+        self.key(Qt.Key.Key_Backtab, Qt.KeyboardModifier.ShiftModifier)
+        self.assertTrue(boxes[0].hasActiveFocus())
+        self.key(Qt.Key.Key_Space)
+        self.assertFalse(boxes[0].property("checked"))
+        self.key(Qt.Key.Key_Tab)
+        self.key(Qt.Key.Key_Return)
+        self.wait(200)
+        self.assertEqual(store.load(first_sha).categories, [])
+        lib_list.setProperty("currentIndex", 0)
+
         # Search inside marks: "/" then text from a note.
         self.key(Qt.Key.Key_Slash)
         self.type_text("on the exam")
@@ -510,6 +554,32 @@ class UiSmokeTest(unittest.TestCase):
                 self.assertLessEqual(right_edge(title), self.window.width() + 1)
             for name in ("librarySettings", "libraryAbout", "librarySearch"):
                 self.assertLessEqual(right_edge(self.window.findChild(QQuickItem, name)), self.window.width() + 1, name)
+
+            # A third of a screen: the header's buttons, every sort button
+            # and every category name still fit, none cut off.
+            self.window.resize(round(32 * font), 438)
+            self.wait(300)
+            visible = [i for i in items(self.window.contentItem()) if i.isVisible()]
+            for name in ("librarySettings", "libraryAbout", "librarySearch"):
+                self.assertLessEqual(right_edge(self.window.findChild(QQuickItem, name)), self.window.width() + 1, name)
+            sorts = [i for i in visible if i.objectName() == "sortButton"]
+            self.assertEqual(len(sorts), 4)
+            for button in sorts:
+                self.assertLessEqual(right_edge(button), self.window.width() + 1, button.property("text"))
+            cats = [i for i in visible if i.objectName() == "categoryName"]
+            self.assertGreaterEqual(len(cats), 2)
+            for cat in cats:
+                self.assertFalse(cat.property("truncated"), cat.property("text"))
+            # The category strip keeps its keys: l moves along it, Down goes back to the documents.
+            cat_list = self.window.findChild(QQuickItem, "categoryList")
+            cat_list.forceActiveFocus()
+            cat_list.setProperty("currentIndex", 0)
+            self.key(Qt.Key.Key_L)
+            self.assertEqual(cat_list.property("currentIndex"), 1)
+            self.key(Qt.Key.Key_Down)
+            self.assertTrue(self.window.findChild(QQuickItem, "libraryList").hasActiveFocus())
+            self.window.resize(round(40 * font), 900)
+            self.wait(300)
 
             self.assertTrue(self.doc.open(str(self.pdf)))
             self.wait(400)

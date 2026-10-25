@@ -57,6 +57,9 @@ DgDialog {
                 text: modelData
                 checked: dialog.chosen.indexOf(modelData) >= 0
                 onToggled: dialog.toggle(modelData, checked)
+                // A click puts focus here; Enter still saves, as in the name field.
+                Keys.onReturnPressed: dialog.save()
+                Keys.onEnterPressed: dialog.save()
             }
         }
     }

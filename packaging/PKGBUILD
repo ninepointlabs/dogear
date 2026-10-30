@@ -18,7 +18,7 @@ depends=(
 makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
 checkdepends=('ghostscript')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('88a2c23b3a3a50a26555b862a39e78749534318eb3a93e6b99338776bdf772ae')
+sha256sums=('c6bf6eafa53a6da4af1c85a10ecb80efd7055f2dbb904935451cf65c5d7ab40c')
 
 build() {
   cd "$pkgname-$pkgver"

@@ -1,7 +1,7 @@
 # Status
 
-STATUS: 0.1.1 released (Arch package and AppImage on the GitHub release). Fixes from the
-0.1.1 QA pass (2026-10-25) are in pull requests waiting for review.
+STATUS: 0.1.2 released (Arch package and AppImage on the GitHub release): the 0.1.1 QA
+fixes, answers that flow onto ruled lines, and tables of contents made from headings.
 
 ## Launch
 
@@ -15,7 +15,7 @@ README for the package and the AppImage. Press `F1` in the app for the keyboard 
 
 ## What works (verified)
 
-Verified by `PYTHONPATH=src python3 -m unittest discover -s tests` (118 tests at 0.1.1, all
+Verified by `PYTHONPATH=src python3 -m unittest discover -s tests` (129 tests at 0.1.2, all
 pass) and by runs on the real Hyprland session. Features are listed without the release that
 added them; the Release entries below say what each release brought.
 
@@ -52,7 +52,9 @@ added them; the Release entries below say what each release brought.
 
 - **Release 0.1.1**: the About dialog, the narrow-window layout and the light/dark palette off Omarchy, with the Arch package built by `makepkg` from the `v0.1.1` tarball in a clean `archlinux:latest` container as for 0.1.0, and the AppImage attached by `.github/workflows/appimage.yml`.
 
-- **QA of 0.1.1** (2026-10-25, on the Surface): no critical findings. Fixes are in pull requests, none merged yet: [#8](https://github.com/ninepointlabs/dogear/pull/8) reader (double-click selects a word, Go to page prefers page labels, "Page 8 (12 of 12)", "Searching…"), [#9](https://github.com/ninepointlabs/dogear/pull/9) library at a third of a screen and Enter in the Categories dialog, [#10](https://github.com/ninepointlabs/dogear/pull/10) app id/portal registration, the GTK file dialog's window class and quieter Qt PDF logs, and the docs pull request with this file (autonomix `install` step, checksums, one AppImage distro list, where marks are kept).
+- **QA of 0.1.1** (2026-10-25, on the Surface): no critical findings. Fixed in 0.1.2: [#8](https://github.com/ninepointlabs/dogear/pull/8) reader (double-click selects a word, Go to page prefers page labels, "Page 8 (12 of 12)", "Searching…"), [#9](https://github.com/ninepointlabs/dogear/pull/9) library at a third of a screen and Enter in the Categories dialog, [#10](https://github.com/ninepointlabs/dogear/pull/10) app id/portal registration, the GTK file dialog's window class and quieter Qt PDF logs, and the docs pull request with this file (autonomix `install` step, checksums, one AppImage distro list, where marks are kept).
+
+- **Release 0.1.2**: the 0.1.1 QA fixes (#8–#11), answers that start on a blank at the end of a question's line and flow onto the ruled lines below it, filling them before the text shrinks (#12), and a table of contents made from the headings of PDFs without one (#14). The Arch package was built by `makepkg` from the `v0.1.2` tarball in a clean `archlinux:latest` container as for 0.1.1, and the AppImage was attached by `.github/workflows/appimage.yml`.
 
 ## What doesn't (yet)
 
@@ -97,5 +99,5 @@ added them; the Release entries below say what each release brought.
 
 ## Repo
 
-On GitHub at [ninepointlabs/dogear](https://github.com/ninepointlabs/dogear). Releases 0.1.0 and
-0.1.1 are tagged and published there, and changes go in through pull requests.
+On GitHub at [ninepointlabs/dogear](https://github.com/ninepointlabs/dogear). Releases 0.1.0,
+0.1.1 and 0.1.2 are tagged and published there, and changes go in through pull requests.

@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from dogear.store import (
+    Answer,
     AnnotationStore,
     DocAnnotations,
     Highlight,
@@ -77,12 +78,15 @@ class TestDocAnnotations(unittest.TestCase):
 
     def test_answers(self):
         doc = DocAnnotations(sha256="x")
-        later = doc.add_answer(1, 90, 300, 400, pitch=24, lines=3, size=12, context="2. Explain")
+        later = doc.add_answer(1, 90, 300, 400, pitch=24, lines=3, indent=150, size=12, context="2. Explain")
         first = doc.add_answer(1, 210, 120, 300, context="1. Name:")
         other = doc.add_answer(0, 50, 500, 200)
         self.assertEqual([a.id for a in doc.answers], [other.id, first.id, later.id])
         self.assertEqual(later.bottom(), 348)
         self.assertEqual(first.bottom(), 120)
+        # The first line's indent is kept, and older files without one load.
+        self.assertEqual(Answer.from_dict(later.to_dict()).indent, 150)
+        self.assertEqual(Answer.from_dict({**first.to_dict(), "indent": None}).indent, 0)
         doc.set_answer_text(first.id, "Photosynthesis")
         self.assertEqual(doc.answer(first.id).text, "Photosynthesis")
         self.assertEqual(len(doc.answers_on_page(1)), 2)

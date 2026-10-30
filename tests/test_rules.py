@@ -171,6 +171,19 @@ class TestSlots(unittest.TestCase):
         self.assertEqual(slot_from(rules, 0)["lines"], 1)
         self.assertEqual(slot_from(rules, 1)["lines"], 1)
 
+    def test_blank_ending_the_question_starts_the_ruled_lines(self):
+        # "2. Why do we ...? ______" then two full ruled lines under it.
+        rules = self.rules((314, 575.25, 199.5, 12.5), (136, 593.25, 377.5, 17.5), (136, 611.25, 377.5, 17.5),
+                           (427, 637.75, 86.5, 26))
+        slot = slot_from(rules, 0)
+        self.assertEqual((slot["x"], slot["y"], slot["w"]), (136, 575.25, 377.5))
+        self.assertEqual((slot["lines"], slot["pitch"], slot["indent"]), (3, 18, 178))
+        # A short blank works too, and a block without one has no indent.
+        self.assertEqual(slot_from(rules, 3)["lines"], 1)
+        self.assertEqual(slot_from(rules, 1)["indent"], 0)
+        short = self.rules((483.5, 100, 30, 12), (136, 118, 377.5, 17.5))
+        self.assertEqual((slot_from(short, 0)["lines"], slot_from(short, 0)["indent"]), (2, 347.5))
+
     def test_stacked_short_blanks_stay_separate(self):
         # "___ sentence" one per line, evenly spaced: answer each on its own.
         rules = self.rules((100, 100, 24, 20), (100, 130, 24, 20), (100, 160, 24, 20))

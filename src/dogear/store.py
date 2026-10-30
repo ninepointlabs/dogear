@@ -133,6 +133,7 @@ class Highlight:
     note: str = ""
     created: str = ""
     updated: str = ""
+    indent: float = 0.0
 
     def sort_key(self) -> tuple[int, float, float]:
         if not self.rects:
@@ -225,7 +226,9 @@ class Answer:
 
     Positions are PDF points from the page's top-left. `y` is the first
     line the text sits on; with `pitch` > 0 the text continues on `lines`
-    evenly spaced lines below it, like ruled paper. `context` is the text
+    evenly spaced lines below it, like ruled paper. The first line starts
+    `indent` right of `x` when it is a blank at the end of the question's
+    own line. `context` is the text
     printed around the line (the question), kept for the export.
     """
 
@@ -241,6 +244,7 @@ class Answer:
     context: str = ""
     created: str = ""
     updated: str = ""
+    indent: float = 0.0
 
     def sort_key(self) -> tuple[int, float, float]:
         return (self.page, self.y, self.x)
@@ -258,6 +262,7 @@ class Answer:
             "w": round(self.w, 2),
             "pitch": round(self.pitch, 2),
             "lines": self.lines,
+            "indent": round(self.indent, 2),
             "size": round(self.size, 2),
             "text": self.text,
             "context": self.context,
@@ -285,6 +290,7 @@ class Answer:
             context=_str(raw.get("context")),
             created=_str(raw.get("created")),
             updated=_str(raw.get("updated")),
+            indent=max(0.0, min(w, _num(raw.get("indent")))),
         )
 
 
@@ -429,10 +435,14 @@ class DocAnnotations:
     # -- answers written on the page
     def add_answer(
         self, page: int, x: float, y: float, w: float, *,
-        pitch: float = 0.0, lines: int = 1, size: float = 11.0, text: str = "", context: str = "",
+        pitch: float = 0.0, lines: int = 1, indent: float = 0.0, size: float = 11.0, text: str = "",
+        context: str = "",
     ) -> Answer:
         stamp = now_iso()
-        ans = Answer(new_id(), page, x, y, w, max(0.0, pitch), max(1, lines), size, text, context, stamp, stamp)
+        ans = Answer(
+            new_id(), page, x, y, w, max(0.0, pitch), max(1, lines), size, text, context, stamp, stamp,
+            max(0.0, indent),
+        )
         self.answers.append(ans)
         self.answers.sort(key=Answer.sort_key)
         return ans

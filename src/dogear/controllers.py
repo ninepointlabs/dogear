@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Property, QFileSystemWatcher, QModelIndex, QObject, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QGuiApplication, QTextBlockFormat, QTextCursor
+from PySide6.QtGui import QFont, QGuiApplication, QTextBlockFormat, QTextCursor, QTextDocument, QTextOption
 from PySide6.QtPdf import QPdfDocument, QPdfSearchModel
 from PySide6.QtQuick import QQuickTextDocument
 
@@ -473,13 +473,18 @@ class DocumentController(QObject):
     def _covering(self, page: int, rule: dict) -> Answer | None:
         """The answer already written on this line, if any."""
         for a in self._ann.answers_on_page(page):
-            if abs(rule["x"] - a.x) < 4.0 and a.y - 0.5 <= rule["y"] <= a.bottom() + 0.5:
+            if not a.y - 0.5 <= rule["y"] <= a.bottom() + 0.5:
+                continue
+            if abs(rule["x"] - a.x) < 4.0 or (a.indent and abs(rule["y"] - a.y) < 0.5 and abs(rule["x"] - a.x - a.indent) < 4.0):
                 return a
         return None
 
     def _answer_hit(self, page: int, x: float, y: float) -> Answer | None:
         for a in self._ann.answers_on_page(page):
             if a.x - 2 <= x <= a.x + a.w + 2 and a.y - max(a.size * 1.8, 12.0) <= y <= a.bottom() + 4.0:
+                # Left of an indented first line is the question.
+                if a.indent and y <= a.y + 4.0 and x < a.x + a.indent - 2:
+                    continue
                 return a
         return None
 
@@ -517,10 +522,10 @@ class DocumentController(QObject):
                 self._char_lefts[key] = pdf.char_lefts(self._pdf, page, lines[i])
             return self._char_lefts[key]
 
-        context = rules.context_for(lines, slot["x"], slot["y"], rules=found, char_lefts=char_lefts)
+        context = rules.context_for(lines, slot["x"] + slot["indent"], slot["y"], rules=found, char_lefts=char_lefts)
         ans = self._ann.add_answer(
             page, slot["x"], slot["y"], slot["w"], pitch=slot["pitch"], lines=slot["lines"],
-            size=slot["size"], context=context,
+            indent=slot["indent"], size=slot["size"], context=context,
         )
         self._changed()
         return ans.id
@@ -568,12 +573,13 @@ class DocumentController(QObject):
             found = self._rules_on(page)
             order = list(range(len(found)))
             if page == cur.page:
+                start = cur.x + cur.indent
                 if step > 0:
                     order = [i for i in order if found[i]["y"] > cur.bottom() + 1
-                             or (abs(found[i]["y"] - cur.y) < 1 and found[i]["x"] > cur.x + 1)]
+                             or (abs(found[i]["y"] - cur.y) < 1 and found[i]["x"] > start + 1)]
                 else:
                     order = [i for i in order if found[i]["y"] < cur.y - 1
-                             or (abs(found[i]["y"] - cur.y) < 1 and found[i]["x"] < cur.x - 1)]
+                             or (abs(found[i]["y"] - cur.y) < 1 and found[i]["x"] < start - 1)]
             if not order:
                 continue
             index = order[0] if step > 0 else self._group_start(page, order[-1])
@@ -593,11 +599,11 @@ class DocumentController(QObject):
                 return {"page": p, "id": self._answer_on_rule(p, index)}
         return {}
 
-    @Slot(QQuickTextDocument, float)
-    def setLinePitch(self, document: QQuickTextDocument, pitch: float) -> None:
+    @Slot(QQuickTextDocument, float, float)
+    def setLinePitch(self, document: QQuickTextDocument, pitch: float, indent: float) -> None:
         """Space an answer editor's lines exactly `pitch` pixels apart, so
-        each line of text sits on a printed line. QML's TextEdit has no
-        line height of its own."""
+        each line of text sits on a printed line, and start its first line
+        `indent` pixels in. QML's TextEdit has neither of its own."""
         doc = document.textDocument() if document is not None else None
         if doc is None or pitch <= 0:
             return
@@ -606,13 +612,49 @@ class DocumentController(QObject):
         block = doc.begin()
         while block.isValid():
             fmt = block.blockFormat()
-            if fmt.lineHeightType() != QTextBlockFormat.LineHeightTypes.FixedHeight.value or abs(fmt.lineHeight() - pitch) > 0.01:
+            first = block.blockNumber() == 0
+            if (fmt.lineHeightType() != QTextBlockFormat.LineHeightTypes.FixedHeight.value
+                    or abs(fmt.lineHeight() - pitch) > 0.01 or abs(fmt.textIndent() - (indent if first else 0)) > 0.01):
                 fmt.setLineHeight(pitch, QTextBlockFormat.LineHeightTypes.FixedHeight.value)
+                fmt.setTextIndent(indent if first else 0)
                 cursor = QTextCursor(block)
                 cursor.setBlockFormat(fmt)
             block = block.next()
         if fresh:
             doc.clearUndoRedoStacks()
+
+    @Slot(str, str, float, float, float, int, result=float)
+    def fitAnswerPx(self, text: str, family: str, px: float, width: float, indent: float, lines: int) -> float:
+        """The text size in pixels, up to `px`, at which `text` wraps onto
+        no more than `lines` lines of `width` (the first `indent` in). It
+        shrinks only once the lines are full, to no less than 0.6 of `px`."""
+        doc = QTextDocument()
+        doc.setDocumentMargin(0)
+        doc.setTextWidth(max(1.0, width))
+        option = QTextOption()
+        option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        doc.setDefaultTextOption(option)
+        doc.setPlainText(text)
+        cursor = QTextCursor(doc)
+        fmt = cursor.blockFormat()
+        fmt.setTextIndent(indent)
+        cursor.setBlockFormat(fmt)
+        font = QFont(family)
+        low = max(1, int(px * 0.6))
+        size = int(px)
+        while size > low:
+            font.setPixelSize(size)
+            doc.setDefaultFont(font)
+            doc.documentLayout().documentSize()  # lays it out
+            used = 0
+            block = doc.begin()
+            while block.isValid():
+                used += block.layout().lineCount()
+                block = block.next()
+            if used <= lines:
+                break
+            size -= 1
+        return float(size) if size < int(px) else px
 
     @Slot(str, result="QVariantMap")
     def answer(self, aid: str) -> dict:

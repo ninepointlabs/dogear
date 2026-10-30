@@ -543,6 +543,58 @@ class UiSmokeTest(unittest.TestCase):
         self.assertTrue(self.pdf.is_file())
         self.assertGreater(len(store.load(first_sha).highlights), 0)
 
+    def test_made_outline(self):
+        """A PDF without an outline gets one made from its headings, saved
+        so it is made once, and its entries go to their pages."""
+        from dogear import contents
+
+        plain = Path(self._tmp.name) / "plain" / "no outline.pdf"
+        plain.parent.mkdir()
+        subprocess.run([sys.executable, str(ROOT / "tools" / "make_sample_pdf.py"), str(plain), "6", "--no-outline"],
+                       check=True, capture_output=True)
+        self.assertTrue(self.doc.open(str(plain)))
+        self.wait_for(lambda: self.page_view() is not None and self.page_view().property("ready"), msg="view ready")
+        self.wait_for(lambda: not self.doc.property("outlineBuilding"), msg="table of contents made")
+        # Same title as the marked-up sample: say no to bringing its marks over.
+        from PySide6.QtCore import QObject
+        copy_dialog = self.window.findChild(QObject, "copyDialog")
+        if copy_dialog.property("opened"):
+            self.key(Qt.Key.Key_Escape)
+            self.wait(200)
+        self.assertFalse(copy_dialog.property("opened"))
+        titles = [e["title"] for e in self.doc.outline]
+        self.assertEqual(titles[:6], [f"Chapter {p}: Topic {p}" for p in range(1, 7)])
+        self.assertTrue(self.doc.property("outlineMade"))
+        sha = self.engine._dogear_refs[2].identify(plain)
+        self.assertEqual(contents.load(sha), self.doc.outline)
+
+        self.page_view().forceActiveFocus()
+        self.key(Qt.Key.Key_1, Qt.KeyboardModifier.ControlModifier)
+        self.wait(300)
+        self.assertTrue(self.window.findChild(QQuickItem, "outlineMadeNote").isVisible())
+        outline = self.window.findChild(QQuickItem, "outlineList")
+        rows = [i for i in outline.property("contentItem").childItems() if i.property("modelData")]
+        target = next(r for r in rows if r.property("modelData")["title"] == "Chapter 4: Topic 4")
+        centre = target.mapToScene(QPointF(target.width() / 2, target.height() / 2))
+        QTest.mouseClick(self.window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+                         QPoint(round(centre.x()), round(centre.y())))
+        self.wait(400)
+        self.assertEqual(self.page_view().property("currentPage"), 3)
+        self.key(Qt.Key.Key_Backslash, Qt.KeyboardModifier.ControlModifier)
+        self.wait(200)
+
+        # Opened again, it comes from the saved table at once.
+        self.doc.close()
+        self.assertTrue(self.doc.open(str(plain)))
+        self.assertFalse(self.doc.property("outlineBuilding"))
+        self.assertEqual([e["title"] for e in self.doc.outline], titles)
+        self.wait(200)
+        if copy_dialog.property("opened"):
+            self.key(Qt.Key.Key_Escape)
+            self.wait(200)
+        self.assertFalse(copy_dialog.property("opened"))
+        self.doc.close()
+
     def test_narrow_window(self):
         """A tiling window manager's narrow window: titles stay readable and
         nothing runs off the right edge."""

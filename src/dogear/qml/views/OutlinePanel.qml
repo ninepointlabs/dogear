@@ -18,12 +18,32 @@ FocusScope {
         return best
     }
 
+    // Made from the headings when the PDF has no outline of its own.
+    DgText {
+        id: madeNote
+        objectName: "outlineMadeNote"
+        visible: Doc.outlineMade && Doc.outline.length > 0
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.margins: Theme.panelPadding
+        text: "Made from the PDF's headings"
+        role: "caption"
+        muted: true
+    }
+
     PanelList {
         id: list
         objectName: "outlineList"
-        anchors.fill: parent
+        anchors.top: madeNote.visible ? madeNote.bottom : parent.top
+        anchors.topMargin: madeNote.visible ? Theme.spaceSm : 0
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
         model: Doc.outline
-        emptyText: "This PDF has no table of contents."
+        emptyText: Doc.outlineBuilding ? "Making a table of contents from the headings…"
+            : Doc.outlineMade ? "This PDF has no table of contents, and no headings were found."
+            : "This PDF has no table of contents."
         onActivated: (i, item) => panel.reader.goToPage(item.page, item.y, true)
         onDone: panel.done()
 

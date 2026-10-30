@@ -1,9 +1,10 @@
 """Generate a small multi-page sample PDF with an outline, for development and tests.
 
 Uses Ghostscript (pdfmark for the outline). Usage:
-    python tools/make_sample_pdf.py out.pdf [pages] [roman]
+    python tools/make_sample_pdf.py out.pdf [pages] [roman] [--no-outline]
 
 [roman] labels the first pages i, ii, ... and the rest 1, 2, ...
+--no-outline leaves the outline out, so Dogear makes one from the headings.
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ WORKSHEET = [
 ]
 
 
-def build_ps(pages: int, roman: int = 0) -> str:
+def build_ps(pages: int, roman: int = 0, outline: bool = True) -> str:
     out = ["%!PS-Adobe-3.0", "/Helvetica findfont 12 scalefont setfont"]
     chapters = []
     for p in range(1, pages + 1):
@@ -59,7 +60,8 @@ def build_ps(pages: int, roman: int = 0) -> str:
         if last:
             out += WORKSHEET
         out.append(f"300 40 moveto {_ps_string(str(p))} show")
-        out.append(f"[ /Title {_ps_string(f'Chapter {p}: Topic {p}')} /Page {p} /OUT pdfmark")
+        if outline:
+            out.append(f"[ /Title {_ps_string(f'Chapter {p}: Topic {p}')} /Page {p} /OUT pdfmark")
         out.append("showpage")
     out.append("[ /Title (Dogear sample) /DOCINFO pdfmark")
     if roman:
@@ -69,12 +71,13 @@ def build_ps(pages: int, roman: int = 0) -> str:
 
 
 def main() -> int:
-    target = Path(sys.argv[1] if len(sys.argv) > 1 else "sample.pdf")
-    pages = int(sys.argv[2]) if len(sys.argv) > 2 else 6
-    roman = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+    args = [a for a in sys.argv[1:] if a != "--no-outline"]
+    target = Path(args[0] if args else "sample.pdf")
+    pages = int(args[1]) if len(args) > 1 else 6
+    roman = int(args[2]) if len(args) > 2 else 0
     with tempfile.TemporaryDirectory() as tmp:
         ps = Path(tmp) / "sample.ps"
-        ps.write_text(build_ps(pages, roman))
+        ps.write_text(build_ps(pages, roman, "--no-outline" not in sys.argv))
         subprocess.run(
             # Letter, always: Ghostscript's default paper follows the
             # system (A4 in many places), and the tests click by position.

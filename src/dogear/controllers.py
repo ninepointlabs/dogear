@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from PySide6.QtGui import QFont, QGuiApplication, QTextBlockFormat, QTextCursor,
 from PySide6.QtPdf import QPdfDocument, QPdfSearchModel
 from PySide6.QtQuick import QQuickTextDocument
 
-from . import config, library, pdf, rules
+from . import config, contents, library, pdf, rules
 from .export import export_markdown
 from .store import HIGHLIGHT_COLORS, AnnotationStore, Answer, DocAnnotations, Rect, ViewState, clean_pdf_text
 
@@ -36,6 +37,7 @@ def _to_path(path_or_url: str) -> Path:
 
 class DocumentController(QObject):
     loadedChanged = Signal()
+    outlineChanged = Signal()
     annotationsChanged = Signal()
     searchChanged = Signal()
     message = Signal(str)  # transient notice for the toast
@@ -57,6 +59,12 @@ class DocumentController(QObject):
         self._revision = 0
         self._page_sizes: list[list[float]] = []
         self._outline: list[dict] = []
+        # A PDF without an outline gets one made from its headings, a few
+        # pages at a time so reading isn't held up (pdfium is UI-thread only).
+        self._outline_made = False
+        self._outline_next = -1  # the next page to read; -1 when not building
+        self._outline_step = QTimer(self, interval=0)
+        self._outline_step.timeout.connect(self._build_outline)
         self._links: dict[int, list[dict]] = {}
         self._rules: dict[int, list[dict]] = {}
         self._lines: dict[int, list[dict]] = {}
@@ -118,9 +126,18 @@ class DocumentController(QObject):
             s = self._pdf.pagePointSize(i)
             self._page_sizes.append([s.width() or 612.0, s.height() or 792.0])
         self._outline = pdf.outline(self._pdf)
+        self._outline_made = False
+        if not self._outline:
+            saved = contents.load(self._ann.sha256)
+            if saved is None:
+                self._outline_next = 0
+                self._outline_step.start()
+            else:
+                self._outline, self._outline_made = saved, True
         self._error = ""
         self._revision += 1
         self.loadedChanged.emit()
+        self.outlineChanged.emit()
         self.annotationsChanged.emit()
         self._app.refreshRecents()
         if self._ann.carried_from:
@@ -136,6 +153,29 @@ class DocumentController(QObject):
             if copies:
                 self.copyFound.emit(library.entry(self._store, copies[0]))
         return True
+
+    def _build_outline(self) -> None:
+        """Read the next page or two's text (about 15 ms a step); at the end, make
+        and save the table of contents."""
+        if self._ann is None or self._outline_next < 0:
+            self._outline_step.stop()
+            return
+        count = len(self._page_sizes)
+        started = time.monotonic()
+        while self._outline_next < count and time.monotonic() - started < 0.015:
+            page = self._outline_next
+            if page not in self._lines:
+                self._lines[page] = pdf.text_lines(self._pdf, page)
+            self._outline_next += 1
+        if self._outline_next < count:
+            return
+        self._outline_step.stop()
+        self._outline_next = -1
+        labels = [self._pdf.pageLabel(i) or str(i + 1) for i in range(count)]
+        self._outline = contents.build([self._lines[i] for i in range(count)], labels)
+        self._outline_made = True
+        contents.save(self._ann.sha256, self._outline)
+        self.outlineChanged.emit()
 
     def _keep_copy(self) -> None:
         """Copy a marked-up PDF into the library (setting, on by default)."""
@@ -185,12 +225,16 @@ class DocumentController(QObject):
         self._path = ""
         self._page_sizes = []
         self._outline = []
+        self._outline_made = False
+        self._outline_next = -1
+        self._outline_step.stop()
         self._links = {}
         self._rules = {}
         self._lines = {}
         self._char_lefts = {}
         self._revision += 1
         self.loadedChanged.emit()
+        self.outlineChanged.emit()
         self.annotationsChanged.emit()
 
     def close_for_move(self) -> str:
@@ -270,7 +314,10 @@ class DocumentController(QObject):
     error = Property(str, lambda self: self._error, notify=loadedChanged)
     pageCount = Property(int, lambda self: len(self._page_sizes), notify=loadedChanged)
     pageSizes = Property("QVariantList", lambda self: self._page_sizes, notify=loadedChanged)
-    outline = Property("QVariantList", lambda self: self._outline, notify=loadedChanged)
+    outline = Property("QVariantList", lambda self: self._outline, notify=outlineChanged)
+    # The outline was made by Dogear from the PDF's headings.
+    outlineMade = Property(bool, lambda self: self._outline_made, notify=outlineChanged)
+    outlineBuilding = Property(bool, lambda self: self._outline_next >= 0, notify=outlineChanged)
     revision = Property(int, lambda self: self._revision, notify=annotationsChanged)
     colors = Property("QStringList", lambda self: list(HIGHLIGHT_COLORS), constant=True)
 

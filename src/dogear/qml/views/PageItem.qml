@@ -326,7 +326,7 @@ Item {
             // Text fills its lines first: it shrinks (down to 0.6) only when
             // it no longer fits on the answer's lines, then wraps below them.
             readonly property real fitPx: ruled
-                ? Doc.fitAnswerPx(text, "sans-serif", basePx, width, indentPx, modelData.lines)
+                ? Doc.fitAnswerPx(textDocument, text, basePx, width, indentPx, modelData.lines)
                 : Math.max(basePx * 0.6, Math.min(basePx, basePx * width * 0.97 / Math.max(1, natural.advanceWidth)))
             readonly property real lift: Math.max(1.5, Math.min(size, modelData.size) * 0.25) * page.s
 

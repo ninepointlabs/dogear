@@ -66,6 +66,9 @@
     <control>keyboard</control>
   </supports>
   <releases>
+    <release version="0.1.2" date="2026-10-30">
+      <url type="details">https://github.com/ninepointlabs/dogear/releases/tag/v0.1.2</url>
+    </release>
     <release version="0.1.1" date="2026-10-19">
       <url type="details">https://github.com/ninepointlabs/dogear/releases/tag/v0.1.1</url>
     </release>

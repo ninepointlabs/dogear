@@ -3,7 +3,7 @@
 # Builds from the GitHub release tarball. The built package is attached to
 # each GitHub release (https://github.com/ninepointlabs/dogear/releases).
 pkgname=dogear
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="An Omarchy-native PDF reader for study: highlight, annotate, bookmark, export to Markdown"
 arch=('any')

@@ -643,8 +643,9 @@ class DocumentController(QObject):
         fmt.setTextIndent(indent)
         cursor.setBlockFormat(fmt)
         font = QFont(doc.defaultFont())
-        low = max(1, int(px * 0.6))
-        size = int(px)
+        # QML rounds a font's pixelSize: measure at the size it will show.
+        low = max(1, round(px * 0.6))
+        size = round(px)
         while size > low:
             font.setPixelSize(size)
             doc.setDefaultFont(font)
@@ -657,7 +658,7 @@ class DocumentController(QObject):
             if used <= lines:
                 break
             size -= 1
-        return float(size) if size < int(px) else px
+        return float(size) if size < round(px) else px
 
     @Slot(str, result="QVariantMap")
     def answer(self, aid: str) -> dict:

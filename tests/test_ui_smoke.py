@@ -248,15 +248,6 @@ class UiSmokeTest(unittest.TestCase):
             self.wait(10)
             if editor.property("shownSize") < size - 0.25:
                 break
-            if editor.property("lineCount") > 3:  # DEBUG for CI
-                td = editor.property("textDocument")
-                from PySide6.QtGui import QFontInfo
-                print("DEBUG", words, editor.property("lineCount"), editor.property("size"), editor.property("shownSize"),
-                      editor.property("basePx"), editor.property("fitPx"), editor.property("width"), editor.property("indentPx"),
-                      self.doc.fitAnswerPx(td, editor.property("text"), editor.property("basePx"), editor.property("width"), editor.property("indentPx"), 3),
-                      QFontInfo(editor.property("font")).family(), editor.property("font").pixelSize(),
-                      td.textDocument().defaultFont().toString(), td.textDocument().textWidth(), td.textDocument().lineCount(),
-                      td.textDocument().defaultTextOption().useDesignMetrics(), td.textDocument().defaultTextOption().wrapMode())
             self.assertLessEqual(editor.property("lineCount"), 3)
         self.assertGreater(words, 20)  # three lines' worth at full size
         self.assertEqual(editor.property("lineCount"), 3)

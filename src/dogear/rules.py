@@ -230,39 +230,62 @@ def text_size(lines: list[dict]) -> float:
     return heights[len(heights) // 2] * 1.05
 
 
+def _continues(first: dict, rule: dict) -> bool:
+    """Whether `rule` is the first ruled line under a blank that ends the
+    question's own line: wide, starting further left and ending at the
+    same place, one row down."""
+    return (
+        rule["w"] >= GROUP_MIN_PT
+        and rule["x"] < first["x"] - 4.0
+        and abs(rule["x"] + rule["w"] - first["x"] - first["w"]) <= 4.0
+        and 9.0 <= rule["y"] - first["y"] <= 40.0
+    )
+
+
 def slot_from(rules: list[dict], index: int, size: float = 0.0) -> dict:
     """The writing area that starts at rules[index]: that line plus the
     evenly spaced lines right below it with the same left and right ends,
-    like ruled paper under a question.
+    like ruled paper under a question. A blank at the end of the
+    question's line ("2. Why? ______") starts the ruled lines below it.
 
-    Returns {"x", "y", "w", "pitch", "lines", "size"}: `y` is the first
-    line, `pitch` the distance between lines (0 for a single line) and
-    `size` a font size in points: the page's text size when given,
-    shrunk if needed to fit the space.
+    Returns {"x", "y", "w", "pitch", "lines", "indent", "size"}: `y` is
+    the first line, `pitch` the distance between lines (0 for a single
+    line), `indent` how far right of `x` the first line starts and `size`
+    a font size in points: the page's text size when given, shrunk if
+    needed to fit the space.
     """
     first = rules[index]
-    group = [first]
-    pitch = 0.0
+    rest = rules[index + 1:]
+    # The line the rest of the block lines up with.
+    lead = rest[0] if rest and _continues(first, rest[0]) else first
+    group = [first] if lead is first else [first, lead]
+    pitch = lead["y"] - first["y"]
+    stop = None
     # Short blanks stacked in a column (one per sentence) are separate
     # answers; ruled lines for writing are wide.
-    for rule in rules[index + 1:] if first["w"] >= GROUP_MIN_PT else []:
+    for rule in rest[len(group) - 1:] if lead["w"] >= GROUP_MIN_PT else []:
         last = group[-1]
         d = rule["y"] - last["y"]
         if d < 1.0:
             continue  # another blank further along the same row
-        if abs(rule["x"] - first["x"]) > 4.0 or abs(rule["x"] + rule["w"] - first["x"] - first["w"]) > 4.0:
-            break
-        if not 9.0 <= d <= 40.0 or (pitch and abs(d - pitch) > 0.15 * pitch):
+        if (abs(rule["x"] - lead["x"]) > 4.0 or abs(rule["x"] + rule["w"] - lead["x"] - lead["w"]) > 4.0
+                or not 9.0 <= d <= 40.0 or (pitch and abs(d - pitch) > 0.15 * pitch)):
+            stop = rule
             break
         pitch = pitch or d
         group.append(rule)
+    if lead is not first and stop and abs(stop["y"] - group[-1]["y"] - pitch) <= 0.15 * pitch:
+        # More blanks in the same rhythm: a sentence with blanks in it
+        # that wraps, not ruled lines under a question.
+        group, lead, pitch = [first], first, 0.0
     room = min(first["space"], pitch) if pitch else first["space"]
     return {
-        "x": first["x"],
+        "x": lead["x"],
         "y": first["y"],
-        "w": round(min(r["x"] + r["w"] for r in group) - first["x"], 2),
+        "w": round(min(r["x"] + r["w"] for r in group) - lead["x"], 2),
         "pitch": round(pitch, 2),
         "lines": len(group),
+        "indent": round(first["x"] - lead["x"], 2),
         "size": round(max(6.0, min(size or 12.0, 13.0, room * (0.8 if size else 0.55))), 2),
     }
 

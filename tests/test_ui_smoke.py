@@ -239,6 +239,21 @@ class UiSmokeTest(unittest.TestCase):
         self.type_text("Carbon is fixed")
         self.key(Qt.Key.Key_Return)  # ruled lines: Enter is a new line
         self.type_text("into sugar")
+        # Ruled lines fill one after another at full size; only text that
+        # no longer fits on all three shrinks, and then it still fits.
+        editor = self.page_view().property("activeAnswer")
+        size = editor.property("size")
+        for words in range(2, 200):
+            editor.setProperty("text", "carbon " * words)
+            self.wait(10)
+            if editor.property("shownSize") < size - 0.25:
+                break
+            self.assertLessEqual(editor.property("lineCount"), 3)
+        self.assertGreater(words, 20)  # three lines' worth at full size
+        self.assertEqual(editor.property("lineCount"), 3)
+        editor.setProperty("text", "Carbon is fixed\ninto sugar")
+        editor.setProperty("cursorPosition", 26)
+        self.wait()
         self.key(Qt.Key.Key_Tab)
         self.type_text("red")
         self.key(Qt.Key.Key_Return)  # a single blank: Enter moves on

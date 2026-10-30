@@ -267,18 +267,33 @@ Item {
         }
     }
 
-    // Hover hint: the writing area of an empty answer line.
-    Rectangle {
+    // Hover hint: the writing area of an empty answer line. A first line
+    // at the end of the question's line starts further right.
+    Item {
+        id: hint
         readonly property var b: page.blank
+        readonly property real indent: b ? b.indent * page.s : 0
         visible: b !== null && !page.pageView.selecting
         x: b ? b.x * page.s : 0
         y: b ? (b.y - b.size * 1.6) * page.s : 0
         width: b ? b.w * page.s : 0
         height: b ? (b.size * 1.6 + (b.lines - 1) * b.pitch) * page.s : 0
-        color: Theme.tint(Theme.accent, 0.12)
+        Rectangle {
+            x: hint.indent
+            width: parent.width - x
+            height: hint.b ? hint.b.size * 1.6 * page.s : 0
+            color: Theme.tint(Theme.accent, 0.12)
+        }
+        Rectangle {
+            y: hint.b ? hint.b.size * 1.6 * page.s : 0
+            width: parent.width
+            height: parent.height - y
+            color: Theme.tint(Theme.accent, 0.12)
+        }
         Rectangle {
             anchors.bottom: parent.bottom
-            width: parent.width
+            x: hint.b && hint.b.lines > 1 ? 0 : hint.indent
+            width: parent.width - x
             height: 2
             color: Theme.tint(Theme.accent, 0.6)
         }
@@ -308,8 +323,10 @@ Item {
                 size = next
                 Doc.setAnswerSize(modelData.id, next)
             }
-            // A single line shrinks its text to fit before it wraps.
-            readonly property real fitPx: ruled ? basePx
+            // Text fills its lines first: it shrinks (down to 0.6) only when
+            // it no longer fits on the answer's lines, then wraps below them.
+            readonly property real fitPx: ruled
+                ? Doc.fitAnswerPx(textDocument, text, basePx, width, indentPx, modelData.lines)
                 : Math.max(basePx * 0.6, Math.min(basePx, basePx * width * 0.97 / Math.max(1, natural.advanceWidth)))
             readonly property real lift: Math.max(1.5, Math.min(size, modelData.size) * 0.25) * page.s
 
@@ -328,10 +345,13 @@ Item {
             font.family: "sans-serif"
             font.pixelSize: Math.max(1, fitPx)
             wrapMode: TextEdit.WrapAtWordBoundaryOrAnywhere
-            // Ruled answers put one line of text on each printed line.
+            // Ruled answers put one line of text on each printed line. The
+            // first starts further right when it ends the question's line.
             readonly property real pitchPx: ruled ? modelData.pitch * page.s : 0
-            function applyPitch() { if (ruled) Doc.setLinePitch(textDocument, pitchPx) }
+            readonly property real indentPx: (modelData.indent || 0) * page.s
+            function applyPitch() { if (ruled) Doc.setLinePitch(textDocument, pitchPx, indentPx) }
             onPitchPxChanged: applyPitch()
+            onIndentPxChanged: applyPitch()
             onLineCountChanged: applyPitch()
             selectByMouse: true
             persistentSelection: false
@@ -348,18 +368,31 @@ Item {
                 text: ans.text
             }
 
-            // While typing, tint the whole writing area.
-            Rectangle {
+            // While typing, tint the whole writing area, from where the
+            // first line starts.
+            Shape {
+                id: area
                 z: -1
                 visible: ans.activeFocus
+                readonly property real firstH: ans.modelData.size * 1.6 * page.s
+                readonly property real cut: ans.indentPx > 0 ? ans.indentPx + 2 : 0
                 x: -2
-                y: ans.firstBaseline + ans.lift - ans.modelData.size * 1.6 * page.s
+                y: ans.firstBaseline + ans.lift - firstH
                 width: ans.width + 4
-                height: Math.max(ans.modelData.size * 1.6 * page.s + (ans.modelData.lines - 1) * ans.modelData.pitch * page.s,
+                height: Math.max(firstH + (ans.modelData.lines - 1) * ans.modelData.pitch * page.s,
                                  ans.height - y) + 3
-                color: Theme.tint(Theme.accent, 0.10)
-                border.width: 1
-                border.color: Theme.tint(Theme.accent, 0.5)
+                ShapePath {
+                    strokeWidth: 1
+                    strokeColor: Theme.tint(Theme.accent, 0.5)
+                    fillColor: Theme.tint(Theme.accent, 0.10)
+                    startX: area.cut; startY: 0
+                    PathLine { x: area.width; y: 0 }
+                    PathLine { x: area.width; y: area.height }
+                    PathLine { x: 0; y: area.height }
+                    PathLine { x: 0; y: area.cut ? area.firstH : 0 }
+                    PathLine { x: area.cut; y: area.cut ? area.firstH : 0 }
+                    PathLine { x: area.cut; y: 0 }
+                }
             }
 
             onTextChanged: Doc.setAnswerText(modelData.id, text)

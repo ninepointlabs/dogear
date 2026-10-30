@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Property, QFileSystemWatcher, QModelIndex, QObject, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QFont, QGuiApplication, QTextBlockFormat, QTextCursor, QTextDocument, QTextOption
+from PySide6.QtGui import QFont, QGuiApplication, QTextBlockFormat, QTextCursor
 from PySide6.QtPdf import QPdfDocument, QPdfSearchModel
 from PySide6.QtQuick import QQuickTextDocument
 
@@ -623,23 +623,26 @@ class DocumentController(QObject):
         if fresh:
             doc.clearUndoRedoStacks()
 
-    @Slot(str, str, float, float, float, int, result=float)
-    def fitAnswerPx(self, text: str, family: str, px: float, width: float, indent: float, lines: int) -> float:
-        """The text size in pixels, up to `px`, at which `text` wraps onto
-        no more than `lines` lines of `width` (the first `indent` in). It
-        shrinks only once the lines are full, to no less than 0.6 of `px`."""
-        doc = QTextDocument()
-        doc.setDocumentMargin(0)
+    @Slot(QQuickTextDocument, str, float, float, float, int, result=float)
+    def fitAnswerPx(self, document: QQuickTextDocument, text: str, px: float, width: float, indent: float,
+                    lines: int) -> float:
+        """The text size in pixels, up to `px`, at which an answer editor's
+        `text` wraps onto no more than `lines` lines of `width` (the first
+        `indent` in). It shrinks only once the lines are full, to no less
+        than 0.6 of `px`. Measured on a copy of the editor's own document,
+        so font, wrapping and metrics are the ones it lays out with."""
+        source = document.textDocument() if document is not None else None
+        if source is None:
+            return px
+        doc = source.clone()
+        if doc.toPlainText() != text:
+            doc.setPlainText(text)
         doc.setTextWidth(max(1.0, width))
-        option = QTextOption()
-        option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
-        doc.setDefaultTextOption(option)
-        doc.setPlainText(text)
         cursor = QTextCursor(doc)
         fmt = cursor.blockFormat()
         fmt.setTextIndent(indent)
         cursor.setBlockFormat(fmt)
-        font = QFont(family)
+        font = QFont(doc.defaultFont())
         low = max(1, int(px * 0.6))
         size = int(px)
         while size > low:

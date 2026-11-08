@@ -18,6 +18,8 @@ to Markdown, for example straight into your Obsidian vault.
 - Recognizes another copy of a book you've marked up (a re-download, a new edition)
   and offers to bring your marks over.
 - Opens PDFs from the file dialog, the command line, drag and drop, or the library.
+- Opens EPUB books too: they're laid out as pages once, then marked up like any PDF
+  (see [EPUB books](#epub-books)).
 - Remembers the page, scroll position and zoom for each file.
 - Highlights in five colors. Click a highlight to change its color, add or edit its note, copy it, or delete it.
 - Highlight notes show in the sidebar and as markers in the page margin. There are also general notes per document.
@@ -205,6 +207,30 @@ bars are ignored. Short blanks (down to about 14 pt, like `____ sentence` lists)
 when they have space on both sides and nothing right below them, which tells them apart
 from dashes and letters.
 
+## EPUB books
+
+Open an `.epub` the same way as a PDF. The first time, Dogear sets the book in pages
+(6 × 9 in, a serif font, chapters starting on a new page), which takes a second or two
+for a long book, and keeps those pages as a PDF: the book's *rendition*. From then on
+everything works as for a PDF: highlights, notes, bookmarks, answer lines, search,
+the library and the Markdown export, with page numbers from the rendition. The
+Contents panel is the book's own table of contents.
+
+- **Marks belong to the EPUB.** They're keyed by the EPUB's hash, the EPUB is what's
+  copied into `Library/`, and the library lists the EPUB. The rendition lives in
+  `.dogear/renditions/<sha256>.pdf` in the library folder, so it syncs with the marks and
+  another computer shows the same pages, even with different fonts.
+- **The pages never change once made.** Marks are positions on them, so Dogear keeps
+  the first rendition of a book even if a later version would lay it out differently.
+  Changing the page size or font would need new pages, and marks wouldn't follow.
+- **The book's own styling is mostly left out.** Qt's text layout understands little
+  CSS, so books get one plain style; bold, italics, headings, lists, tables and images
+  are kept. SVG drawings other than a single image, footnote pop-ups and links inside the
+  book aren't kept (links become plain text).
+- **DRM-protected EPUBs can't be opened.** Font obfuscation (common, harmless) is fine.
+- Another copy of the same book (same identifier, such as its ISBN) is offered your marks,
+  as for PDFs. Different editions of an EPUB are laid out differently, so check the marks.
+
 ## Library
 
 With no PDF open (or after `Ctrl+L`), Dogear shows its library: every PDF you've opened,
@@ -340,10 +366,11 @@ Annotations live in the library folder, one JSON file per PDF:
 
 ```
 ~/Documents/Dogear/                 the library folder (Settings, or $DOGEAR_LIBRARY_DIR)
-├── Library/<file name>.pdf         copies of marked-up PDFs
+├── Library/<file name>.pdf         copies of marked-up PDFs (and .epub books)
 ├── Notes/                          Markdown exports, by default
 └── .dogear/
     ├── annotations/<sha256>.json   one PDF's highlights, notes, bookmarks, answers, position
+    ├── renditions/<sha256>.pdf     an EPUB's pages, and its contents in <sha256>.json
     ├── library.json                categories
     └── removed/                    removed documents, set-aside sync conflict copies
 ~/.local/share/dogear/index.json    this computer's recent files and path → hash cache
@@ -453,6 +480,7 @@ src/dogear/
 ├── __main__.py      entry point, CLI
 ├── controllers.py   Doc and App objects exposed to QML
 ├── pdf.py           selection, word, outline, link and text line helpers
+├── epub.py          lays an EPUB out as a PDF once (QTextDocument + QPdfWriter)
 ├── rules.py         finds answer lines in a rendered page (no Qt in the detector)
 ├── store.py         annotation store, categories, library copies (no Qt)
 ├── library.py       library rows, search, sort, finding other copies (no Qt)
@@ -474,7 +502,8 @@ The smoke test drives the real QML app with mouse and keyboard input: it selects
 highlights text, writes a note, recolors a highlight, adds a bookmark and a document
 note, types answers on a worksheet page (click, `Tab`, `Enter`), searches, exports,
 then closes and reopens the file and checks that everything was restored. It needs Ghostscript to build its sample PDF and is skipped without it.
-`tools/make_sample_pdf.py` builds that sample on its own.
+`tools/make_sample_pdf.py` builds that sample on its own. `tools/make_sample_epub.py`
+builds a sample EPUB (standard library only) for the EPUB tests.
 
 ## License
 

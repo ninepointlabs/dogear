@@ -50,8 +50,8 @@ FocusScope {
         if (!confirm || !row) return
         const marks = row.marks ? row.marks + " mark" + (row.marks > 1 ? "s" : "") : "no marks"
         confirm.ask("Remove “" + row.title + "” from the library?",
-            "Its " + marks + (row.copy ? " and Dogear's copy of the PDF" : "") + " go to "
-            + App.removedDir + ", where you can get them back. The PDF itself"
+            "Its " + marks + (row.copy ? " and Dogear's copy of the file" : "") + " go to "
+            + App.removedDir + ", where you can get them back. The file itself"
             + (row.original ? " (" + row.folder + "/" + row.fileName + ")" : "") + " is not touched.",
             "Remove", () => {
                 const at = list.currentIndex
@@ -140,7 +140,7 @@ FocusScope {
                 }
                 DgText {
                     visible: !start.narrow
-                    text: "or drop a PDF here"
+                    text: "or drop a PDF or EPUB here"
                     muted: true
                     role: "small"
                 }
@@ -148,7 +148,7 @@ FocusScope {
             RowLayout {
             spacing: Theme.spaceLg
             DgButton {
-                text: "Open PDF"
+                text: "Open"
                 hint: start.narrow ? "" : "Ctrl+O"
                 variant: "primary"
                 onClicked: start.openRequested()
@@ -308,7 +308,7 @@ FocusScope {
                     model: start.rows
                     emptyText: start.query ? "Nothing matches “" + start.query + "”."
                         : start.category ? "No documents in this category yet. Press c on a document to file it here."
-                        : "Open a PDF to start your library."
+                        : "Open a PDF or EPUB to start your library."
                     onActivated: (i, item) => start.openRow(item)
                     onDone: if (start.query) search.text = ""
                     Keys.onPressed: event => {

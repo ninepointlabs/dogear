@@ -15,7 +15,7 @@ HERE = Path(__file__).resolve().parent
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog=APP_ID, description=f"{APP_NAME}: {TAGLINE}")
-    parser.add_argument("file", nargs="?", help="PDF to open")
+    parser.add_argument("file", nargs="?", help="PDF or EPUB to open")
     parser.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     parser.add_argument("--debug", action="store_true", help="verbose logging")
     # Packaging check (AppImage CI): start the full UI, open the file if

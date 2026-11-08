@@ -4,9 +4,10 @@ Everything you make lives in the library folder (by default
 ~/Documents/Dogear), which can be synced between computers:
 
     <library folder>/
-        Library/                    copies of the PDFs you mark up
+        Library/                    copies of the PDFs and EPUBs you mark up
         Notes/                      Markdown exports (the default export folder)
         .dogear/annotations/<sha256>.json   one document's annotations
+        .dogear/renditions/<sha256>.pdf     an EPUB laid out as pages (epub.py)
         .dogear/library.json        your categories
         .dogear/removed/            documents taken out of the library
 
@@ -580,6 +581,8 @@ class RecentFile:
 
 META_DIR = ".dogear"  # Dogear's own files inside the library folder
 LIBRARY_DIR = "Library"  # copies of the PDFs inside the library folder
+RENDITIONS_DIR = "renditions"  # EPUBs laid out as PDFs, inside .dogear/
+COPY_SUFFIXES = (".pdf", ".epub")  # what Library/ holds
 _SHA = re.compile(r"[0-9a-f]{64}")
 # A sync service's conflict copy of <sha>.json: Syncthing's
 # "<sha>.sync-conflict-….json", Dropbox's "<sha> (… conflicted copy …).json",
@@ -614,6 +617,7 @@ class AnnotationStore:
         self.removed_dir = self.meta_dir / "removed"
         self.library_path = self.meta_dir / "library.json"
         self.library_dir = root / LIBRARY_DIR
+        self.renditions_dir = self.meta_dir / RENDITIONS_DIR
         self._copies: tuple[int, dict[str, Path]] | None = None
 
     # -- index (recents + hash cache), local to this computer
@@ -782,7 +786,7 @@ class AnnotationStore:
             return self._copies[1]
         found: dict[str, Path] = {}
         before = len(self._index["files"])
-        for f in sorted(self.library_dir.glob("*.pdf")):
+        for f in self.copy_files():
             try:
                 sha = self.identify(f)
                 self._remember_path(f.resolve(), sha)
@@ -794,14 +798,27 @@ class AnnotationStore:
         self._copies = (stamp, found)
         return found
 
+    def copy_files(self) -> list[Path]:
+        """The PDFs and EPUBs in the Library folder."""
+        try:
+            return sorted(f for f in self.library_dir.iterdir() if f.suffix.lower() in COPY_SUFFIXES and f.is_file())
+        except OSError:
+            return []
+
+    def rendition_folders(self) -> list[Path]:
+        """Where EPUB renditions are kept, best first: the library folder (so
+        they sync with the marks made on them), else this computer."""
+        return [self.renditions_dir, self.local / RENDITIONS_DIR]
+
     def _copy_name(self, doc: DocAnnotations) -> str:
-        """A readable file name for a new copy: the PDF's own file name."""
+        """A readable file name for a new copy: the file's own name."""
         name = doc.file_name or f"{doc.display_name()}.pdf"
+        suffix = Path(name).suffix.lower() if Path(name).suffix.lower() in COPY_SUFFIXES else ".pdf"
         stem = _UNSAFE_NAME.sub(" ", Path(name).stem).strip(" .") or doc.sha256[:12]
-        if (self.library_dir / f"{stem}.pdf").exists():
-            # Another PDF with the same name ("Lecture 1.pdf" from two classes).
-            return f"{stem} ({doc.sha256[:8]}).pdf"
-        return f"{stem}.pdf"
+        if (self.library_dir / f"{stem}{suffix}").exists():
+            # Another file with the same name ("Lecture 1.pdf" from two classes).
+            return f"{stem} ({doc.sha256[:8]}){suffix}"
+        return f"{stem}{suffix}"
 
     def copy_path(self, sha: str, doc: DocAnnotations | None = None) -> Path:
         """The library folder's copy of a PDF, or where a new one would go."""
@@ -959,6 +976,9 @@ class AnnotationStore:
         if dogear_copy:
             os.replace(copy, target / copy.name)
             self._copies = None
+        for f in (self.renditions_dir / f"{sha}.pdf", self.renditions_dir / f"{sha}.json"):
+            if f.is_file():  # an EPUB's pages go with its marks
+                os.replace(f, target / f"rendition{f.suffix}")
         self._index["recent"] = [r for r in self._index["recent"] if r.get("sha256") != sha]
         # Forget which paths held it, so opening the PDF again starts fresh.
         self._index["files"] = {
@@ -1045,6 +1065,19 @@ class AnnotationStore:
                     shutil.move(str(d), str(dest))
         return count
 
+    def _absorb_renditions(self, src: Path) -> None:
+        """Move EPUB renditions from another library folder into this one,
+        keeping one already here (marks there were made on it)."""
+        if not src.is_dir() or src.resolve() == self.renditions_dir.resolve():
+            return
+        for pdf in sorted(src.glob("*.pdf")):
+            if not _SHA.fullmatch(pdf.stem) or (self.renditions_dir / pdf.name).exists():
+                continue
+            self.renditions_dir.mkdir(parents=True, exist_ok=True)
+            for f in (pdf, pdf.with_suffix(".json")):  # the pages and their contents, together
+                if f.is_file():
+                    shutil.move(str(f), str(self.renditions_dir / f.name))
+
     def _leave_note(self, folder: Path, moved_ann: Path) -> None:
         note = (
             f"Dogear moved this library to {self.root} on {now_iso()}.\n"
@@ -1097,6 +1130,7 @@ class AnnotationStore:
         if cats:
             self._write_categories(self._listed_categories() + cats)
         count = self._absorb(old_ann, copies, old_root, old_removed) if old_ann.is_dir() else 0
+        self._absorb_renditions(old_meta / RENDITIONS_DIR)
         if old_ann.is_dir():
             moved = old_meta / f"annotations.moved-{int(time.time())}"
             os.replace(old_ann, moved)

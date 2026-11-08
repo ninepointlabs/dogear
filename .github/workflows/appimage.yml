@@ -23,6 +23,7 @@ on:
       - "tests/**"
       - "packaging/**"
       - "tools/make_sample_pdf.py"
+      - "tools/make_sample_epub.py"
       - "pyproject.toml"
       - ".github/workflows/appimage.yml"
 

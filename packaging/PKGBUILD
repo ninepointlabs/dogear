@@ -13,12 +13,13 @@ depends=(
   'python'
   'pyside6'         # QtQuick and the QtPdf bindings
   'qt6-webengine'   # the Qt PDF library itself (libQt6Pdf)
+  'qt6-svg'         # the SVG image plugin: the app icon, SVG images in EPUBs
   'hicolor-icon-theme'
 )
 makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
 checkdepends=('ghostscript')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('c6bf6eafa53a6da4af1c85a10ecb80efd7055f2dbb904935451cf65c5d7ab40c')
+sha256sums=('3663cb731b48e5fd96d25e29575c9b9f7e6d63c38aa377a93c4545fa4599ce0b')
 
 build() {
   cd "$pkgname-$pkgver"

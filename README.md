@@ -57,8 +57,8 @@ Then
 sudo pacman -U dogear-*-any.pkg.tar.zst
 ```
 
-pacman pulls in what it needs from the official repos: `pyside6`, and `qt6-webengine` for
-the Qt PDF library. `packaging/PKGBUILD` builds the same package from source with
+pacman pulls in what it needs from the official repos: `pyside6`, `qt6-webengine` for
+the Qt PDF library, and `qt6-svg` for its icon and SVG images in books. `packaging/PKGBUILD` builds the same package from source with
 `makepkg -si`.
 
 ### Other Linux distros (AppImage)

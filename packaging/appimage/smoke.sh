@@ -46,9 +46,9 @@ check "desktop-file-validate packaging/dogear.desktop" desktop-file-validate "$r
 check "desktop-file-validate AppDir/dogear.desktop" desktop-file-validate "$appdir/dogear.desktop"
 check "desktop-file-validate AppDir/usr/share/applications/dogear.desktop" \
     desktop-file-validate "$appdir/usr/share/applications/dogear.desktop"
-check "StartupWMClass=dogear, MimeType=application/pdf, X-AppImage-Version" bash -c "
+check "StartupWMClass=dogear, MimeType=application/pdf;application/epub+zip, X-AppImage-Version" bash -c "
     grep -qx 'StartupWMClass=dogear' '$appdir/dogear.desktop' &&
-    grep -qx 'MimeType=application/pdf;' '$appdir/dogear.desktop' &&
+    grep -qx 'MimeType=application/pdf;application/epub+zip;' '$appdir/dogear.desktop' &&
     grep -q '^X-AppImage-Version=' '$appdir/dogear.desktop'"
 check "appstreamcli validate --no-net" appstreamcli validate --no-net "$appdir/usr/share/metainfo/dogear.appdata.xml"
 
@@ -71,6 +71,8 @@ check "update information embedded ($info)" test "$info" = "gh-releases-zsync|ni
 # -- running it ---------------------------------------------------------------
 pdf="$tmp/sample.pdf"
 "$appdir/opt/python3.12/bin/python3.12" -I "$root/tools/make_sample_pdf.py" "$pdf" 3 >/dev/null
+book="$tmp/sample.epub"
+"$appdir/opt/python3.12/bin/python3.12" -I "$root/tools/make_sample_epub.py" "$book" 3 >/dev/null
 
 run() {  # run NAME [VAR=value...] -- app args; output in $tmp/NAME.log. SMOKE_X11=1: under Xvfb
     local name="$1"; shift
@@ -99,6 +101,10 @@ check "xvfb-run (xcb): starts, renders a PDF, no QML/plugin errors" launch_ok xv
 
 run offscreen QT_QPA_PLATFORM=offscreen -- --self-test "$pdf" || true
 check "QT_QPA_PLATFORM=offscreen: starts, opens a PDF, no QML/plugin errors" launch_ok offscreen offscreen
+
+run epub QT_QPA_PLATFORM=offscreen -- --self-test "$book" || true
+check "EPUB: laid out as pages and opened" bash -c "
+    grep -q 'self-test: OK' '$tmp/epub.log' && grep -Eq 'pdf_pages=[0-9]+' '$tmp/epub.log'"
 
 # Degrade: empty HOME (no Omarchy theme, no fontconfig, no Hyprland), and no
 # hyprctl or omarchy-* anywhere on PATH.

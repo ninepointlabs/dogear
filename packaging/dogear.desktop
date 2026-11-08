@@ -2,7 +2,7 @@
 Type=Application
 Name=Dogear
 GenericName=PDF and EPUB Reader
-Comment=Read, highlight and remember your PDFs.
+Comment=Read, highlight and remember your PDFs and EPUBs.
 Exec=dogear %f
 Icon=dogear
 Terminal=false

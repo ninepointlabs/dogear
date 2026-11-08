@@ -8,6 +8,7 @@ QT_SCALE_FACTOR=1.5 so a 1280×720 window records at 1920×1080.
     record.py setup        open the demo PDFs once and mark the other courses
     record.py video        record work/out/<clip>.mp4 for each scene
     record.py shots        save the site's screenshots to work/out/shot-*.png
+    record.py epub         open the demo EPUB and save work/out/shot-epub.png
 
 Recording runs in real time at 30 frames a second (a grab takes about 5 ms);
 a frame that comes late is repeated, so the clip keeps time. The mouse
@@ -464,6 +465,34 @@ def scene_sync(r: Recorder):
     r.stop()
 
 
+BOOK = PDFS / "Biology 101" / "A Year in the Garden.epub"
+
+
+def scene_epub(r: Recorder):
+    """An EPUB book, laid out as pages, with its Contents and a highlight
+    with a note. Not recorded: the site's EPUB screenshot."""
+    if not r.doc.open(str(BOOK)):
+        sys.exit(f"could not open {BOOK}")
+    r.frames(10)
+    r.state.setCategories(r.store.identify(BOOK), ["Biology 101"])
+    page = next(e["page"] for e in r.doc.outline if e["title"].startswith("2."))
+    r.go_to(page, 30)
+    r.frames(10)
+    x1, y1, x2, y2 = r.phrase(page, "a leaf turns toward the light within a day")
+    a, b = r.pt(page, x1, y1), r.pt(page, x2, y2)
+    r.drag(a[0], a[1], b[0], b[1], 0.6)
+    r.key(Qt.Key.Key_2, after=6)
+    hid = r.doc.highlights[-1]["id"]
+    r.doc.setHighlightNote(hid, "Phototropism: try it with a bean on the windowsill")
+    r.frames(6)
+    r.page_view().forceActiveFocus()
+    r.key(Qt.Key.Key_1, Qt.KeyboardModifier.ControlModifier, after=20)
+    r.show_cursor(False)
+    r.go_to(page, 40)
+    r.frames(20)
+    r.shot("epub")
+
+
 def video(r: Recorder):
     scene_library(r)
     scene_read(r)
@@ -481,4 +510,6 @@ if __name__ == "__main__":
         setup(rec)
     elif what == "video":
         video(rec)
+    elif what == "epub":
+        scene_epub(rec)
     rec.doc.close()

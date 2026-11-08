@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dogear — Read, highlight and remember your PDFs</title>
-<meta name="description" content="A PDF reader for studying, made for Omarchy. Highlight in five colors, take notes, fill in worksheet blanks by clicking them, and export it all to Markdown for Obsidian. A library with categories, synced between computers through any folder. Never changes your PDFs; no network, no telemetry.">
+<title>Dogear — Read, highlight and remember your PDFs and EPUBs</title>
+<meta name="description" content="A PDF and EPUB reader for studying, made for Omarchy. Highlight in five colors, take notes, fill in worksheet blanks by clicking them, and export it all to Markdown for Obsidian. A library with categories, synced between computers through any folder. Never changes your files; no network, no telemetry.">
 <link rel="canonical" href="https://dogear.ninepointlabs.com/">
-<meta property="og:title" content="Dogear — Read, highlight and remember your PDFs">
-<meta property="og:description" content="A PDF reader for studying, made for Omarchy. Highlights, notes, worksheet answers and Markdown export.">
+<meta property="og:title" content="Dogear — Read, highlight and remember your PDFs and EPUBs">
+<meta property="og:description" content="A PDF and EPUB reader for studying, made for Omarchy. Highlights, notes, worksheet answers and Markdown export.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://dogear.ninepointlabs.com/">
 <meta property="og:image" content="https://dogear.ninepointlabs.com/images/og.jpg">
@@ -216,8 +216,8 @@
 
 <div class="hero">
   <img class="hero-mark" src="icon.svg" alt="">
-  <h1>Read, <span class="hl">highlight</span> and<br>remember your PDFs</h1>
-  <p class="hero-sub">A PDF reader for studying, made for Omarchy. Highlight in five colors, take notes, fill in worksheet blanks by clicking them, and take it all to your notes as Markdown.</p>
+  <h1>Read, <span class="hl">highlight</span> and<br>remember your PDFs and EPUBs</h1>
+  <p class="hero-sub">A PDF and EPUB reader for studying, made for Omarchy. Highlight in five colors, take notes, fill in worksheet blanks by clicking them, and take it all to your notes as Markdown.</p>
   <div class="hero-ctas">
     <a href="#install" class="btn btn-primary">Get Dogear 0.1.2</a>
     <a href="#demo" class="btn btn-ghost">Watch the demo · 1:37</a>
@@ -270,12 +270,21 @@
       <a class="shot" href="images/library.webp"><img src="images/library.webp" width="1920" height="1080" loading="lazy" alt="The library filtered by the search word chlorophyll, showing the photosynthesis handout, marked as found in your marks."></a>
       <div>
         <h3>A library for every class</h3>
-        <p>Every PDF you open is in the library, with how much you've marked in it. <strong>Search reaches inside your notes</strong> and highlights, not only titles. Sort by recent, title or most marked, and file documents under categories, one for each course.</p>
-        <p>Give a file with an unreadable name a name you'll recognize. Dogear keeps a copy of every PDF you mark up, so your notes never lose their page.</p>
+        <p>Every PDF and book you open is in the library, with how much you've marked in it. <strong>Search reaches inside your notes</strong> and highlights, not only titles. Sort by recent, title or most marked, and file documents under categories, one for each course.</p>
+        <p>Give a file with an unreadable name a name you'll recognize. Dogear keeps a copy of every file you mark up, so your notes never lose their page.</p>
       </div>
     </div>
 
     <div class="feature flip">
+      <a class="shot" href="images/epub.webp"><img src="images/epub.webp" width="1920" height="1080" loading="lazy" alt="An EPUB book open in Dogear: its chapters in the Contents sidebar and a page with a sentence highlighted in green, its note marked in the margin."></a>
+      <div>
+        <h3>EPUB books too</h3>
+        <p>Open an <strong>EPUB</strong> the same way as a PDF. Dogear sets the book in pages once, in a plain, readable style, and from then on it's marked up like any PDF: highlights and notes, bookmarks, search, the library and the Markdown export. The Contents panel is the book's own table of contents.</p>
+        <p>The pages are kept with your notes and never change, so your marks stay on the words you marked, on every computer.</p>
+      </div>
+    </div>
+
+    <div class="feature">
       <a class="shot" href="images/search.webp"><img src="images/search.webp" width="1920" height="1080" loading="lazy" alt="Searching the handout for rubisco: the match is highlighted on the page, with the search bar above."></a>
       <div>
         <h3>Find your way around</h3>
@@ -284,7 +293,7 @@
       </div>
     </div>
 
-    <div class="feature">
+    <div class="feature flip">
       <a class="shot" href="images/export.webp"><img src="images/export.webp" width="1920" height="1080" loading="lazy" alt="The exported Markdown file: highlights as quotes with their page and color, the note under its highlight, a bookmark, and each worksheet question with its answers."></a>
       <div>
         <h3>Markdown for your notes</h3>
@@ -292,11 +301,11 @@
       </div>
     </div>
 
-    <div class="feature flip">
+    <div class="feature">
       <a class="shot" href="images/settings.webp"><img src="images/settings.webp" width="1920" height="1080" loading="lazy" alt="Settings, with the library folder being changed to a synced folder."></a>
       <div>
         <h3>One folder, every computer</h3>
-        <p>Your notes, categories and copies of the PDFs live in one folder, <code>~/Documents/Dogear</code>. Point Dogear at a folder you sync with <strong>Syncthing, Dropbox or Google Drive</strong>, and every computer has the same library.</p>
+        <p>Your notes, categories and copies of your files live in one folder, <code>~/Documents/Dogear</code>. Point Dogear at a folder you sync with <strong>Syncthing, Dropbox or Google Drive</strong>, and every computer has the same library.</p>
         <p>Edits made on another computer show up in an open document as they arrive, and if two computers changed the same document, Dogear merges both, keeping every mark.</p>
       </div>
     </div>
@@ -350,8 +359,8 @@
     <p class="lead">Dogear is a reader, not a service.</p>
     <div class="principles">
       <div>
-        <h3>Your PDFs are never changed</h3>
-        <p>Marks are kept in your Dogear library folder, never inside the PDF, and matched to it by its contents. Rename or move a file and its notes follow; nothing is ever dropped into your class folders.</p>
+        <h3>Your files are never changed</h3>
+        <p>Marks are kept in your Dogear library folder, never inside the PDF or book, and matched to it by its contents. Rename or move a file and its notes follow; nothing is ever dropped into your class folders.</p>
       </div>
       <div>
         <h3>No accounts, no network</h3>
@@ -373,7 +382,7 @@
   <div class="wrap">
     <div class="label">Install</div>
     <h2>Get Dogear</h2>
-    <p class="lead">An Arch package for Arch and Omarchy is on every <a href="https://github.com/ninepointlabs/dogear/releases/latest">GitHub release</a>. It puts Dogear in your app launcher and lets it open PDFs.</p>
+    <p class="lead">An Arch package for Arch and Omarchy is on every <a href="https://github.com/ninepointlabs/dogear/releases/latest">GitHub release</a>. It puts Dogear in your app launcher and lets it open PDFs and EPUBs.</p>
     <div class="install-grid">
       <div class="install-card">
         <h3>With autonomix-cli</h3>
@@ -394,7 +403,7 @@
         <div class="code-block"><span class="prompt">$</span> sha256sum -c dogear-0.1.2-x86_64.AppImage.sha256 <span class="comment"># prints OK</span>
 <span class="prompt">$</span> chmod +x dogear-0.1.2-x86_64.AppImage
 <span class="prompt">$</span> ./dogear-0.1.2-x86_64.AppImage
-<span class="prompt">$</span> ./dogear-0.1.2-x86_64.AppImage --install-desktop-entry <span class="comment"># app menu and PDFs</span></div>
+<span class="prompt">$</span> ./dogear-0.1.2-x86_64.AppImage --install-desktop-entry <span class="comment"># app menu, PDFs and EPUBs</span></div>
         <p style="margin-top: 12px;">Or let <a href="https://flathub.org/apps/it.mijorus.gearlever">Gear Lever</a> or <a href="https://github.com/TheAssassin/AppImageLauncher">AppImageLauncher</a> add it to your menu and keep it updated.</p>
       </div>
     </div>

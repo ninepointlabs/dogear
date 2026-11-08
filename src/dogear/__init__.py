@@ -1,8 +1,8 @@
-"""Dogear: an Omarchy-native PDF reader for study."""
+"""Dogear: an Omarchy-native PDF and EPUB reader for study."""
 
 APP_ID = "dogear"
 APP_NAME = "Dogear"
-TAGLINE = "Read, highlight and remember your PDFs."
+TAGLINE = "Read, highlight and remember your PDFs and EPUBs."
 __version__ = "0.1.2"
 ORGANIZATION = "Nine Point Labs"
 SUPPORT_EMAIL = "help@ninepointlabs.com"

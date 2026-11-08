@@ -1,9 +1,9 @@
 # Dogear
 
-**Read, highlight and remember your PDFs.** · [dogear.ninepointlabs.com](https://dogear.ninepointlabs.com),
+**Read, highlight and remember your PDFs and EPUBs.** · [dogear.ninepointlabs.com](https://dogear.ninepointlabs.com),
 with a narrated demo video
 
-Dogear is a PDF reader for studying, built for [Omarchy](https://omarchy.org). It does
+Dogear is a PDF and EPUB reader for studying, built for [Omarchy](https://omarchy.org). It does
 what you'd do to a paper textbook: highlight in several colors, write notes next to
 what you highlighted, bookmark pages, fill in the blanks on worksheets, and keep
 general notes about the document. It
@@ -28,7 +28,7 @@ to Markdown, for example straight into your Obsidian vault.
 - Search with jumping between matches.
 - Exports highlights, notes, bookmarks and answers to Markdown, grouped by page.
 - Keyboard first. Repaints immediately when you run `omarchy theme set`.
-- Never modifies your PDFs. No network access, no telemetry.
+- Never modifies your PDFs or books. No network access, no telemetry.
 
 ## Install
 

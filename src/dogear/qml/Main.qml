@@ -64,14 +64,15 @@ Window {
         keys: ["text/uri-list"]
         onDropped: drop => {
             const url = drop.urls.length ? drop.urls[0].toString() : ""
-            if (url.toLowerCase().endsWith(".pdf")) { Doc.open(url); drop.accept() }
+            const lower = url.toLowerCase()
+            if (lower.endsWith(".pdf") || lower.endsWith(".epub")) { Doc.open(url); drop.accept() }
         }
     }
 
     FileDialog {
         id: openDialog
-        title: "Open PDF"
-        nameFilters: ["PDF files (*.pdf *.PDF)", "All files (*)"]
+        title: "Open PDF or EPUB"
+        nameFilters: ["PDFs and EPUBs (*.pdf *.PDF *.epub *.EPUB)", "PDF files (*.pdf *.PDF)", "EPUB books (*.epub *.EPUB)", "All files (*)"]
         onAccepted: Doc.open(selectedFile.toString())
     }
 

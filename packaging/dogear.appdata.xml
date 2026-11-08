@@ -5,25 +5,26 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>Dogear</name>
-  <summary>Read, highlight and remember your PDFs</summary>
+  <summary>Read, highlight and remember your PDFs and EPUBs</summary>
   <developer id="com.ninepointlabs">
     <name>Nine Point Labs</name>
   </developer>
   <description>
     <p>
-      Dogear is a PDF reader for studying. It does what you would do to a paper
+      Dogear is a PDF and EPUB reader for studying. It does what you would do to a paper
       textbook: highlight in several colors, write notes next to what you highlighted,
       bookmark pages, fill in the blanks on worksheets and keep general notes about the
       document. When you are done, export everything to Markdown.
     </p>
     <ul>
-      <li>A library of every PDF you have opened, searchable by title, folder and the text of your marks</li>
+      <li>A library of every PDF and book you have opened, searchable by title, folder and the text of your marks</li>
       <li>Highlights in five colors, with notes in the sidebar and the page margin</li>
       <li>Answer lines: click a blank line in a worksheet and type</li>
       <li>Named bookmarks and the PDF's own table of contents</li>
+      <li>Opens EPUB books too, laid out as pages once so marks stay put</li>
       <li>Remembers the page, scroll position and zoom for each file</li>
       <li>Keeps the library in one folder you can sync between computers</li>
-      <li>Never modifies your PDFs; no network access, no telemetry</li>
+      <li>Never modifies your PDFs or books; no network access, no telemetry</li>
     </ul>
     <p>
       Built for Omarchy, where it follows the desktop theme live. On other desktops it
@@ -33,6 +34,8 @@
   <launchable type="desktop-id">dogear.desktop</launchable>
   <provides>
     <binary>dogear</binary>
+    <mediatype>application/pdf</mediatype>
+    <mediatype>application/epub+zip</mediatype>
   </provides>
   <url type="homepage">https://dogear.ninepointlabs.com</url>
   <url type="bugtracker">https://github.com/ninepointlabs/dogear/issues</url>

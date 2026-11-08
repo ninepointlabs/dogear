@@ -377,6 +377,70 @@ class UiSmokeTest(unittest.TestCase):
         rows = view.property("rows")
         return rows.toVariant() if hasattr(rows, "toVariant") else rows
 
+    def test_epub_book(self):
+        """An EPUB opens as pages (its rendition), takes marks keyed by the
+        EPUB, gets its contents from the book, and is left untouched."""
+        import importlib.util
+        from PySide6.QtCore import QObject
+        from dogear import pdf as pdftext
+
+        spec = importlib.util.spec_from_file_location("make_sample_epub", ROOT / "tools" / "make_sample_epub.py")
+        sample = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(sample)
+        book = sample.build(Path(self._tmp.name) / "books" / "Sample Book.epub", 3)
+        before = book.read_bytes()
+        store = self.engine._dogear_refs[2]
+
+        self.addCleanup(self.doc.close)
+        self.assertTrue(self.doc.open(str(book)))
+        self.wait_for(lambda: self.page_view() is not None and self.page_view().property("ready")
+                      and self.page_view().property("tops") is not None, msg="view ready")
+        copy_dialog = self.window.findChild(QObject, "copyDialog")
+        self.assertFalse(copy_dialog.property("opened"))
+        sha = store.identify(book)
+        self.assertEqual(self.doc.path, str(book.resolve()))
+        rendition = Path(self.doc.url.toLocalFile())
+        self.assertEqual(rendition, (store.renditions_dir / f"{sha}.pdf").resolve())
+        self.assertEqual(self.doc.title, "Sample Book")
+        self.assertGreater(self.doc.pageCount, 3)
+        self.assertEqual([e["title"] for e in self.doc.outline if e["level"] == 0],
+                         ["Chapter 1: Topic 1", "Chapter 2: Topic 2", "Chapter 3: Topic 3"])
+        self.assertFalse(self.doc.property("outlineMade"))
+        self.assertFalse(self.doc.property("outlineBuilding"))
+
+        # Highlight the first line of text by dragging across it.
+        line = next(ln for ln in pdftext.text_lines(self.doc._pdf, 0) if ln["text"].startswith("Paragraph 1 "))
+        x, y, w, h = line["rect"]
+        self.drag(0, x + 1, y + h / 2, x + w - 1, y + h / 2)
+        self.key(Qt.Key.Key_1)
+        hls = self.doc.highlights
+        self.assertEqual(len(hls), 1)
+        self.assertEqual(hls[0]["page"], 0)
+        self.assertEqual(" ".join(hls[0]["text"].split()), line["text"])
+        self.doc.flush()
+        saved = store.load(sha)
+        self.assertEqual(len(saved.highlights), 1)
+        self.assertEqual(saved.file_name, "Sample Book.epub")
+        self.assertEqual(saved.pdf_id, "epub:urn:uuid:12345678-dog-ear-sample")
+
+        # The marked-up book is copied into the library as an EPUB.
+        self.doc.close()
+        self.assertTrue(self.doc.open(str(book)))
+        self.wait(200)
+        self.assertEqual(store.load(sha).copy, "Library/Sample Book.epub")
+        self.assertEqual((store.root / "Library" / "Sample Book.epub").read_bytes(), before)
+        # Opened again, the same rendition and the same mark.
+        self.assertEqual(Path(self.doc.url.toLocalFile()), rendition)
+        self.assertEqual(len(self.doc.highlights), 1)
+
+        target = Path(self.doc.exportMarkdown())
+        self.assertIn(line["text"].split()[0], target.read_text())
+        self.doc.close()
+        self.assertEqual(book.read_bytes(), before)
+        self.assertEqual([p.name for p in book.parent.iterdir()], ["Sample Book.epub"])
+        # Take it out again so the other tests' library counts hold.
+        store.remove_document(sha)
+
     def test_library_flow(self):
         """Runs after the end-to-end flow (alphabetical order) and uses its marks."""
         from PySide6.QtCore import QObject

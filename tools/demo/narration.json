@@ -4,9 +4,9 @@
  "model": "eleven_multilingual_v2",
  "segments": [
   {"clip": "01-title", "card": "title",
-   "text": "This is Dogear. A PDF reader for studying, made for Omarchy."},
+   "text": "This is Dogear. A reader for studying your PDFs and e-books, made for Omarchy."},
   {"clip": "02-library", "caption": "Your library",
-   "text": "Every PDF you open goes into your library. Sort it, search it, and file each one under a category, one for every class."},
+   "text": "Every PDF and e-book you open goes into your library. Sort it, search it, and file each one under a category, one for every class."},
   {"clip": "03-read", "caption": "Reading",
    "text": "Reading is quiet and quick. Scroll with the wheel, or with J and K. Dogear remembers where you stopped, in every file."},
   {"clip": "04-highlight", "caption": "Highlights and notes",

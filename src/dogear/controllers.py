@@ -12,7 +12,7 @@ from PySide6.QtGui import QFont, QGuiApplication, QTextBlockFormat, QTextCursor
 from PySide6.QtPdf import QPdfDocument, QPdfSearchModel
 from PySide6.QtQuick import QQuickTextDocument
 
-from . import config, contents, library, pdf, rules
+from . import config, contents, epub, library, pdf, rules
 from .export import export_markdown
 from .store import HIGHLIGHT_COLORS, AnnotationStore, Answer, DocAnnotations, Rect, ViewState, clean_pdf_text
 
@@ -56,6 +56,8 @@ class DocumentController(QObject):
         # changed on disk since came from another computer.
         self._base: dict | None = None
         self._path = ""
+        # What is rendered: the file itself, or an EPUB's PDF rendition.
+        self._render_path = ""
         self._revision = 0
         self._page_sizes: list[list[float]] = []
         self._outline: list[dict] = []
@@ -99,7 +101,17 @@ class DocumentController(QObject):
             self._fail(f"File not found: {path}")
             return False
         self.close()
-        status = self._pdf.load(str(path))
+        render = path
+        book: dict | None = None
+        if epub.is_epub(path):
+            # Laid out as pages once (a second or two); then it's a PDF.
+            try:
+                sha = self._store.identify(path)
+                render, book = epub.rendition(path, sha, self._store.rendition_folders())
+            except (OSError, epub.EpubError) as exc:
+                self._fail(f"Could not open {path.name}: {exc}")
+                return False
+        status = self._pdf.load(str(render))
         if status != QPdfDocument.Error.None_:
             self._pdf.close()
             reason = {
@@ -109,10 +121,17 @@ class DocumentController(QObject):
             }.get(status, f"error {status.name}")
             self._fail(f"Could not open {path.name}: {reason}")
             return False
-        title = (self._pdf.metaData(QPdfDocument.MetaDataField.Title) or "").strip()
+        if book is not None:
+            title = str(book.get("title") or "").strip()
+            # The book's own identifier (ISBN or UUID) finds its other copies.
+            ident = str(book.get("identifier") or "").strip()
+            doc_id = f"epub:{ident}" if ident else ""
+        else:
+            title = (self._pdf.metaData(QPdfDocument.MetaDataField.Title) or "").strip()
+            doc_id = library.pdf_id(path)
         try:
             self._ann = self._store.open_document(
-                path, title=title, page_count=self._pdf.pageCount(), pdf_id=library.pdf_id(path)
+                path, title=title, page_count=self._pdf.pageCount(), pdf_id=doc_id
             )
         except OSError as exc:
             self._pdf.close()
@@ -121,11 +140,14 @@ class DocumentController(QObject):
         self._base = self._store.read_dict(self._ann.sha256)
         self._app.watch()  # its folders may have just been made
         self._path = str(path.resolve())
+        self._render_path = str(Path(render).resolve())
         self._page_sizes = []
         for i in range(self._pdf.pageCount()):
             s = self._pdf.pagePointSize(i)
             self._page_sizes.append([s.width() or 612.0, s.height() or 792.0])
         self._outline = pdf.outline(self._pdf)
+        if book is not None:
+            self._outline = epub.load_contents(Path(render).with_suffix(".json")) or []
         self._outline_made = False
         if not self._outline:
             saved = contents.load(self._ann.sha256)
@@ -141,12 +163,13 @@ class DocumentController(QObject):
         self.annotationsChanged.emit()
         self._app.refreshRecents()
         if self._ann.carried_from:
-            self.message.emit("This PDF changed since you last read it; your annotations were carried over.")
+            kind = "book" if book is not None else "PDF"
+            self.message.emit(f"This {kind} changed since you last read it; your annotations were carried over.")
             self._ann.carried_from = ""
             self._save()
         self._keep_copy()
         if self._store.is_library_copy(Path(self._path)) and any(Path(p).parent.is_dir() for p in self._ann.paths):
-            self.message.emit("The original PDF wasn't found, so this is Dogear's copy of it.")
+            self.message.emit("The original file wasn't found, so this is Dogear's copy of it.")
         self.opened.emit()
         if self._ann.is_empty():
             copies = library.find_copies(self._store, self._ann)
@@ -223,6 +246,7 @@ class DocumentController(QObject):
         self._ann = None
         self._base = None
         self._path = ""
+        self._render_path = ""
         self._page_sizes = []
         self._outline = []
         self._outline_made = False
@@ -299,7 +323,9 @@ class DocumentController(QObject):
     # -- document properties
     loaded = Property(bool, lambda self: self._ann is not None, notify=loadedChanged)
     path = Property(str, lambda self: self._path, notify=loadedChanged)
-    url = Property(QUrl, lambda self: QUrl.fromLocalFile(self._path) if self._path else QUrl(), notify=loadedChanged)
+    # What the page view renders: for an EPUB, its PDF rendition.
+    url = Property(QUrl, lambda self: QUrl.fromLocalFile(self._render_path) if self._render_path else QUrl(),
+                   notify=loadedChanged)
     # The document's own name, also when it was opened from the library copy.
     fileName = Property(
         str,
@@ -1012,7 +1038,7 @@ class AppController(QObject):
     @Slot(result=str)
     def copiesSize(self) -> str:
         """Disk space the library's PDF copies take, for Settings."""
-        total = sum(f.stat().st_size for f in self._store.library_dir.glob("*.pdf")) if self._store.library_dir.is_dir() else 0
+        total = sum(f.stat().st_size for f in self._store.copy_files())
         for unit in ("bytes", "KB", "MB", "GB"):
             if total < 1024 or unit == "GB":
                 return f"{total:.0f} {unit}" if unit == "bytes" else f"{total:.1f} {unit}"

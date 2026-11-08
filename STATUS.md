@@ -15,8 +15,8 @@ README for the package and the AppImage. Press `F1` in the app for the keyboard 
 
 ## What works (verified)
 
-Verified by `PYTHONPATH=src python3 -m unittest discover -s tests` (129 tests at 0.1.2, all
-pass) and by runs on the real Hyprland session. Features are listed without the release that
+Verified by `PYTHONPATH=src python3 -m unittest discover -s tests` (129 tests at 0.1.2, 142
+with EPUB support, all pass) and by runs on the real Hyprland session. Features are listed without the release that
 added them; the Release entries below say what each release brought.
 
 - Open from the CLI argument, `Ctrl+O` file dialog, drag and drop, and the library.
@@ -40,9 +40,11 @@ added them; the Release entries below say what each release brought.
 - Performance with a generated 400-page PDF: open in about 0.4 s. Only pages near the viewport render, off the UI thread.
 - No network code and no telemetry.
 
+- **EPUB books** (unreleased, on `main` after 0.1.2): an `.epub` (or a file whose zip says it's one) opens from the CLI, `Ctrl+O`, drag and drop and the library. The first open lays the book out as a 6 × 9 in PDF with Qt's `QTextDocument` and `QPdfWriter` (QtGui only, so no new dependency and nothing new for the AppImage, which has no WebEngine), saved as `.dogear/renditions/<sha256>.pdf` with the book's table of contents (pages and positions found from the layout) next to it as JSON. Everything else then runs on the rendition. Marks, the library copy, the hash and the file name are the EPUB's; `pdf_id` is `epub:<dc:identifier>`, so other copies of the book are recognized. EPUB 3 nav and EPUB 2 NCX contents both work (dot leaders and page numbers are stripped from titles). DRM-encrypted books are refused with a message. Removing a document moves its rendition along with its marks; moving the library folder moves renditions too. Checked on two real books: *Bahá'í Sacred Writings* (EPUB 3, 418 pages in 1.6 s; cover, title page, contents and all section headings land on the right pages) and a calibre EPUB 2 (121 pages in 0.2 s; its text is jumbled, but that's in the source, a pdftohtml conversion). `tests/test_epub.py` (12 tests) and a smoke test that opens a sample EPUB in the real app, highlights a line by dragging, checks the marks are keyed by the EPUB, the copy is `Library/<name>.epub`, the rendition is reused, the export works and nothing is written next to the EPUB.
+
 - **About dialog**: from the library header, Settings and the shortcuts list (`?`). It shows version, Nine Point Labs, created October 2026, MIT License with the full text, support email (Email opens your mail app with version details filled in; Copy copies it), privacy (no telemetry, no network) and Qt/PySide6/Python versions, plus "Copy version details". The bundled license copy is tested against `LICENSE`.
 
-- **Website**: `docs/` is the site for dogear.ninepointlabs.com (GitHub Pages from `main`, `/docs`, with `docs/CNAME`). Its screenshots and the narrated demo video (`docs/media/dogear-demo.mp4`, 1:37) are made from the real app by `tools/demo/make_media.py`: it prints original demo handouts to PDF with headless Chromium, drives Dogear offscreen in real time with real mouse, wheel and key events (`tools/demo/record.py`), and narrates with ElevenLabs (George, `tools/demo/narration.json`, key from `~/.config/elevenlabs/api_key`, cached per line in `tools/demo/work/tts`). It runs with a scratch home, library and theme in `tools/demo/work/` (git-ignored), so your own library and theme are untouched.
+- **Website**: `docs/` is the site for dogear.ninepointlabs.com (GitHub Pages from `main`, `/docs`, with `docs/CNAME`). Its screenshots and the narrated demo video (`docs/media/dogear-demo.mp4`, 1:37) are made from the real app by `tools/demo/make_media.py`: it prints original demo handouts to PDF with headless Chromium, drives Dogear offscreen in real time with real mouse, wheel and key events (`tools/demo/record.py`), and narrates with ElevenLabs (George, `tools/demo/narration.json`, key from `~/.config/elevenlabs/api_key`, cached per line in `tools/demo/work/tts`). It runs with a scratch home, library and theme in `tools/demo/work/` (git-ignored), so your own library and theme are untouched. The EPUB screenshot (`docs/images/epub.webp`) comes from an original demo book made by `make_media.py` and the `epub` scene in `record.py`; `make_media.py epub` makes just that one.
 
 - **Narrow windows**, such as half a screen in a tiling window manager. The library drops the tagline and key hints, puts sorting under the search box, narrows the categories, and moves a document's marks and buttons under its title. The reader's toolbar drops its key hints and zoom buttons, then Fit, Search and Export (their keys still work), and the title always keeps room. The thresholds are in units of the theme's font size, so they follow a bigger Omarchy font. Checked by screenshots at 1500, 950, 640 and 480 px, and a smoke test at 40 font-widths that fails on the old layout (the document title got 0 px).
 
@@ -57,6 +59,10 @@ added them; the Release entries below say what each release brought.
 - **Release 0.1.2**: the 0.1.1 QA fixes (#8–#11), answers that start on a blank at the end of a question's line and flow onto the ruled lines below it, filling them before the text shrinks (#12), and a table of contents made from the headings of PDFs without one (#14). The Arch package was built by `makepkg` from the `v0.1.2` tarball in a clean `archlinux:latest` container as for 0.1.1, and the AppImage was attached by `.github/workflows/appimage.yml`.
 
 ## What doesn't (yet)
+
+- **EPUBs are laid out once, in one style.** No page size, font or font size choice; the publisher's CSS is ignored (inline styles stay). Links inside a book become plain text, and SVG drawings other than a wrapped image are dropped. A rendition is never remade, so a better layout in a later Dogear version only applies to books opened for the first time.
+- **Rendering a big EPUB blocks the window** for the second or two it takes, on first open only. There's no progress indicator.
+- **Two computers opening a new EPUB before the rendition syncs** each make their own. With the same fonts they're identical; with different fonts the marks made on one computer may sit slightly off on the other until one rendition wins the sync.
 
 - **Highlights can't cross pages.** A drag that leaves the page selects to the end of the starting page. Highlight each page separately.
 - **External links (URLs) aren't followed**, by design (no network). Internal links (table of contents pages, cross-references) are implemented but untested, because the sample PDF has none.

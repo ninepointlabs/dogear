@@ -5,7 +5,7 @@
 pkgname=dogear
 pkgver=0.1.2
 pkgrel=1
-pkgdesc="An Omarchy-native PDF reader for study: highlight, annotate, bookmark, export to Markdown"
+pkgdesc="An Omarchy-native PDF and EPUB reader for study: highlight, annotate, bookmark, export to Markdown"
 arch=('any')
 url="https://github.com/ninepointlabs/dogear"
 license=('MIT')

@@ -4,6 +4,7 @@
     tools/demo/make_media.py           # everything
     tools/demo/make_media.py record    # just record the scenes again
     tools/demo/make_media.py video     # just cut the video from the recordings
+    tools/demo/make_media.py epub      # just the EPUB screenshot (after a record)
 
 Needs ffmpeg, ImageMagick, Chromium, PySide6 and an ElevenLabs API key in
 $ELEVENLABS_API_KEY or ~/.config/elevenlabs/api_key. Narration is cached in
@@ -64,6 +65,38 @@ COURSES = {
     ]),
 }
 
+# An EPUB for the class, to show books open too: (title, [(chapter, [paragraphs])]).
+BOOK = ("A Year in the Garden", "Biology 101/A Year in the Garden.epub", [
+    ("1. Spring: Seeds Wake Up", [
+        "A seed is a plant waiting for the right moment. Inside its coat lie a tiny root, a tiny shoot and a "
+        "store of food to live on until its first leaves can make more.",
+        "Water is the signal. As the seed drinks, it swells, splits its coat and sends the root down first, "
+        "so the shoot has something to drink by the time it reaches the surface.",
+        "Warm soil speeds everything up. Beans sown in cold April soil may sit for weeks; the same beans in "
+        "May are up in days.",
+    ]),
+    ("2. Summer: Leaves at Work", [
+        "By midsummer a garden is a factory running on sunlight. Each leaf takes in carbon dioxide through "
+        "pores on its underside and water through its veins, and turns them into sugar.",
+        "Leaves are not fixed in place. Put a pot on a windowsill and a leaf turns toward the light within a "
+        "day, because the cells on its shaded side grow faster than those on its sunny side.",
+        "The same pores that let air in let water out. On a hot afternoon a single sunflower can lose more "
+        "than a litre, which is why gardeners water in the evening, when less of it is lost.",
+        "Flowers open in the long days too. Their colors and scents are advertising, aimed at the bees, "
+        "moths and hoverflies that carry pollen from one flower to the next.",
+    ]),
+    ("3. Autumn: Storing Up", [
+        "As the days shorten, plants move what they have made into storage: roots swell, seeds fill and "
+        "fruit ripens and falls.",
+        "The green of chlorophyll fades first, revealing the yellow and orange pigments that were there all "
+        "summer, hidden underneath.",
+    ]),
+    ("4. Winter: Rest", [
+        "A dormant garden is not a dead one. Buds wait under scales, bulbs wait underground, and seeds wait "
+        "in the soil for spring and the right moment again.",
+    ]),
+])
+
 PAGE = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>{title}</title><style>
 @page {{ size: Letter; margin: 1in; }}
 body {{ font-family: "Liberation Serif", serif; font-size: 12pt; line-height: 1.5; }}
@@ -123,8 +156,47 @@ def record():
         src.parent.mkdir(parents=True, exist_ok=True)
         src.write_text(PAGE.format(title=html.escape(title), body=body))
         print_pdf(src, classes / rel)
+    make_epub(classes / BOOK[1])
     run(sys.executable, HERE / "record.py", "setup", env=env())
     run(sys.executable, HERE / "record.py", "video", env=env())
+    run(sys.executable, HERE / "record.py", "epub", env=env())
+
+
+def make_epub(path: Path):
+    """The demo book as an EPUB 3 with a nav table of contents."""
+    import zipfile
+
+    title, _, chapters = BOOK
+    path.parent.mkdir(parents=True, exist_ok=True)
+    files = {}
+    for i, (heading, paras) in enumerate(chapters, 1):
+        body = "".join(f"<p>{html.escape(t)}</p>" for t in paras)
+        files[f"OEBPS/ch{i}.xhtml"] = (
+            '<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head>'
+            f"<title>{html.escape(heading)}</title></head><body><h1>{html.escape(heading)}</h1>{body}</body></html>")
+    items = "".join(f'<li><a href="ch{i}.xhtml">{html.escape(h)}</a></li>' for i, (h, _) in enumerate(chapters, 1))
+    files["OEBPS/nav.xhtml"] = (
+        '<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml" '
+        'xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Contents</title></head><body>'
+        f'<nav epub:type="toc"><ol>{items}</ol></nav></body></html>')
+    manifest = "".join(f'<item id="ch{i}" href="ch{i}.xhtml" media-type="application/xhtml+xml"/>'
+                       for i in range(1, len(chapters) + 1))
+    spine = "".join(f'<itemref idref="ch{i}"/>' for i in range(1, len(chapters) + 1))
+    files["OEBPS/content.opf"] = (
+        '<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
+        'unique-identifier="uid"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        f'<dc:identifier id="uid">urn:uuid:dogear-demo-garden</dc:identifier><dc:title>{title}</dc:title>'
+        '<dc:creator>Dogear demo</dc:creator><dc:language>en</dc:language></metadata>'
+        f'<manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>{manifest}'
+        f'</manifest><spine>{spine}</spine></package>')
+    files["META-INF/container.xml"] = (
+        '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+        '<rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>'
+        '</rootfiles></container>')
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("mimetype", "application/epub+zip")
+        for name, text in files.items():
+            z.writestr(name, text, compress_type=zipfile.ZIP_DEFLATED)
 
 
 def shots():
@@ -289,5 +361,10 @@ if __name__ == "__main__":
     if what in ("all", "record"):
         record()
         shots()
+    if what == "epub":  # just the EPUB screenshot, on the library record made
+        make_epub(WORK / "home" / "Documents" / "Classes" / BOOK[1])
+        run(sys.executable, HERE / "record.py", "epub", env=env())
+        run("magick", OUT / "shot-epub.png", "-quality", "86", "-define", "webp:method=6",
+            DOCS / "images" / "epub.webp")
     if what in ("all", "video"):
         video()

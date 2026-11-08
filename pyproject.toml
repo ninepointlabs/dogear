@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "dogear"
 version = "0.1.2"
-description = "An Omarchy-native PDF reader for study: highlight, annotate, bookmark, export to Markdown."
+description = "An Omarchy-native PDF and EPUB reader for study: highlight, annotate, bookmark, export to Markdown."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

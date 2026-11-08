@@ -23,7 +23,7 @@ _SPLIT = re.compile(r"[\s_\-()\[\],]+")
 
 
 def _name_tokens(name: str) -> list[str]:
-    base = name[:-4] if name.lower().endswith(".pdf") else name
+    base = name.rsplit(".", 1)[0] if name.lower().endswith((".pdf", ".epub")) else name
     return [t for t in _SPLIT.split(base.casefold()) if t]
 
 
